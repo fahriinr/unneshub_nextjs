@@ -1,0 +1,17 @@
+version: "3.8"
+
+services:
+  db_unneshub:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD:
+      POSTGRES_DB: unneshub
+    ports:
+      - "5050:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
