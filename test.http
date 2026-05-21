@@ -1,0 +1,20 @@
+POST http://localhost:3000/api/auth/sign-up/email
+Content-Type: application/json
+Origin: http://localhost:3000
+
+{
+  "email": "user@students.unnes.ac.id",
+  "password": "Password123!",
+  "name": "John Doe"
+}
+
+###
+
+POST http://localhost:3000/api/auth/sign-in/email
+Content-Type: application/json
+Origin: http://localhost:3000
+
+{
+  "email": "user@students.unnes.ac.id",
+  "password": "Password123!"
+}
