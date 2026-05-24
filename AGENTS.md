@@ -19,16 +19,6 @@
 - **Comm Admin:** Manage own community (desc, rules, cover), member moderation (approve/kick), events, broadcasts.
 - **Global Admin:** Community approval, anonymous post moderation, user suspension, global role management.
 
-## 🎨 UI Design System (Mobile First / APK Webview)
-
-- **Layout:** Header (Logo+Nav), Main Content, Footer.
-- **Colors:**
-  - `--color-primary-dark`: #0A1D37 (BG, Header, High-contrast text)
-  - `--color-accent-yellow`: #F4C41B (Primary buttons, FAB, Highlights)
-  - `--color-bg-light`: #FFFFFF (Main content background)
-  - `--color-surface-gray`: #D1D5DB (Cards, Borders, Inputs)
-  - `--color-text-muted`: #6B7280 (Placeholders, Sub-headers)
-
 ## 🗄️ Database & Logic
 
 - **Users:** `id, name, email, prodi, angkatan, role, is_verified`.

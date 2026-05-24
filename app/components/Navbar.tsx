@@ -86,7 +86,7 @@ export default function Navbar() {
             Beranda
           </Link>
           <Link 
-            href="/community/1" 
+            href="/community/join" 
             className={`px-3 py-1.5 rounded-lg border-2 border-transparent transition-all ${pathname.startsWith("/community") ? "bg-amber-50 border-primary-dark text-primary-dark shadow-[2px_2px_0px_0px_var(--color-primary-dark)]" : "hover:bg-slate-50"}`}
           >
             Komunitas
@@ -146,11 +146,11 @@ export default function Navbar() {
                   🏠 Beranda
                 </Link>
                 <Link 
-                  href="/community/1" 
+                  href="/community/join" 
                   onClick={() => setDropdownOpen(false)}
                   className="flex items-center w-full px-3 py-1.5 text-xs font-bold text-primary-dark hover:bg-slate-50 rounded-lg"
                 >
-                  🏘️ HIMA SI Komunitas
+                  🏘️ Komunitas
                 </Link>
                 <Link 
                   href="/profile" 

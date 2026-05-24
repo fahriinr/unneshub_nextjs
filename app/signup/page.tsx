@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useUserSession } from "../hooks/useUserSession";
+import { authClient } from "@/lib/auth/auth-client";
+import { signupSchema } from "@/lib/validations/auth";
 
 const FAKULTAS_LIST = [
   "FMIPA (Fakultas Matematika & Ilmu Pengetahuan Alam)",
@@ -18,156 +19,144 @@ const FAKULTAS_LIST = [
 
 export default function SignupPage() {
   const router = useRouter();
-  const { signup } = useUserSession();
   const [name, setName] = useState("");
   const [nim, setNim] = useState("");
   const [email, setEmail] = useState("");
   const [fakultas, setFakultas] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
-    if (!name.trim()) {
-      setError("Nama Lengkap wajib diisi!");
+    const result = signupSchema.safeParse({
+      name: name.trim(),
+      nim: nim,
+      fakultas,
+      email: email.trim(),
+      password,
+      confirmPassword,
+      agreed,
+    });
+    if (!result.success) {
+      setError(result.error.issues[0].message);
       setLoading(false);
       return;
     }
 
-    if (!nim.trim()) {
-      setError("NIM wajib diisi!");
+    const { error: authError } = await authClient.signUp.email({
+      email: email.trim().toLowerCase(),
+      password,
+      name: name.trim(),
+    });
+
+    if (authError) {
+      setError(authError.message || "Pendaftaran gagal. Coba lagi.");
       setLoading(false);
       return;
     }
 
-    if (!email.trim()) {
-      setError("Email wajib diisi!");
-      setLoading(false);
-      return;
-    }
-
-    const emailRegex = /^[a-zA-Z0-9._%+-]+@students\.unnes\.ac\.id$/;
-    if (!emailRegex.test(email.trim())) {
-      setError("Email harus menggunakan domain institusi: @students.unnes.ac.id");
-      setLoading(false);
-      return;
-    }
-
-    if (!fakultas) {
-      setError("Fakultas wajib dipilih!");
-      setLoading(false);
-      return;
-    }
-
-    if (!password) {
-      setError("Password wajib diisi!");
-      setLoading(false);
-      return;
-    }
-
-    if (password.length < 6) {
-      setError("Password minimal 6 karakter!");
-      setLoading(false);
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError("Konfirmasi password tidak cocok!");
-      setLoading(false);
-      return;
-    }
-
-    // Success signup flow
-    setTimeout(() => {
-      signup({
-        name: name.trim(),
-        nim: nim.trim(),
-        email: email.trim().toLowerCase(),
-        fakultas: fakultas,
-        isLoggedIn: true,
-      });
-      router.push("/profile");
-      setLoading(false);
-    }, 800);
+    router.push("/signup/success");
   };
 
   return (
-    <div className="flex-1 min-h-screen bg-[#FDFBF7] flex flex-col items-center justify-center p-4 py-12">
-      {/* Container Card - strictly using .neo-card-thick as defined in design.md */}
-      <div className="w-full max-w-md neo-card-thick p-8 hover:scale-[1.005] bg-white">
-        {/* Brand/Logo Area */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 rounded-full bg-[#0A1D37] border-2 border-primary-dark flex items-center justify-center shadow-[3px_3px_0px_0px_#F4C41B] mb-4">
-            <svg viewBox="0 0 100 100" className="w-12 h-12">
-              <path d="M25 20 C 25 20, 25 70, 50 85 C 75 70, 75 20, 75 20 L 50 15 Z" fill="#F4C41B" stroke="#0A1D37" strokeWidth="6" />
-              <circle cx="50" cy="50" r="16" fill="#0A1D37" />
-              <path d="M50 65 L 50 40 M50 45 C 50 45, 42 35, 42 45 C 42 55, 50 50, 50 50 M50 48 C 50 48, 58 38, 58 48 C 58 58, 50 53, 50 53" fill="none" stroke="#22C55E" strokeWidth="5" strokeLinecap="round" />
-              <circle cx="50" cy="35" r="3" fill="#22C55E" />
-            </svg>
-          </div>
-          <h1 className="text-3xl font-extrabold text-primary-dark tracking-tight">UnnesHub</h1>
-          <p className="text-sm font-semibold text-text-muted mt-1">Daftar Akun Baru UnnesHub</p>
+    <div className="flex-1 min-h-screen bg-[#0B1E36] flex flex-col">
+      {/* Navy Header */}
+      <div className="flex flex-col items-center pt-8 pb-6 px-4">
+        <div className="w-20 h-20 mb-4">
+          <svg viewBox="0 0 120 120" className="w-full h-full drop-shadow-lg">
+            <circle
+              cx="60"
+              cy="60"
+              r="56"
+              fill="#F4C41B"
+              stroke="#0A1D37"
+              strokeWidth="4"
+            />
+            <path
+              d="M35 30 C 35 30, 35 80, 60 95 C 85 80, 85 30, 85 30 L 60 24 Z"
+              fill="#0A1D37"
+              stroke="#F4C41B"
+              strokeWidth="2"
+            />
+            <path
+              d="M60 78 L 60 48 M60 54 C 60 54, 50 42, 50 54 C 50 66, 60 58, 60 58 M60 56 C 60 56, 70 44, 70 56 C 70 68, 60 60, 60 60"
+              fill="none"
+              stroke="#22C55E"
+              strokeWidth="4"
+              strokeLinecap="round"
+            />
+            <circle cx="60" cy="42" r="3.5" fill="#22C55E" />
+          </svg>
         </div>
+        <h1 className="text-xl font-extrabold text-white tracking-tight">
+          UnnesHub
+        </h1>
+        <p className="text-sm font-semibold text-[#8FA0AF] mt-0.5">
+          Selamat Datang di UnnesHub
+        </p>
+      </div>
 
-        {/* Error Feedback */}
+      {/* Gray Form Container */}
+      <div className="flex-1 bg-[#E2E5E9] rounded-t-3xl px-6 py-8 animate-fade-in-up">
+        {/* Error */}
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border-2 border-red-500 rounded-xl text-xs font-bold text-red-800 shadow-[3px_3px_0px_0px_#0A1D37] animate-bounce">
+          <div className="mb-5 p-3 bg-red-100 border border-red-400 rounded-lg text-xs font-bold text-red-700 text-center">
             ⚠️ {error}
           </div>
         )}
 
-        {/* Form Fields */}
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-primary-dark tracking-wide">Nama Lengkap</label>
+        <form
+          onSubmit={handleSubmit}
+          className="flex flex-col gap-4 max-w-md mx-auto"
+        >
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-bold text-[#0B1E36] tracking-wide">
+              Nama
+            </label>
             <input
+              id="signup-name"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Masukkan nama lengkap"
-              className="neo-input text-xs"
+              className="auth-input-light"
               disabled={loading}
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-primary-dark tracking-wide">NIM (Nomor Induk Mahasiswa)</label>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-bold text-[#0B1E36] tracking-wide">
+              NIM
+            </label>
             <input
+              id="signup-nim"
               type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               value={nim}
               onChange={(e) => setNim(e.target.value)}
-              placeholder="Masukkan NIM"
-              className="neo-input text-xs"
+              className="auth-input-light"
               disabled={loading}
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-primary-dark tracking-wide">Email UNNES</label>
-            <input
-              type="text"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Masukkan email @students.unnes.ac.id"
-              className="neo-input text-xs"
-              disabled={loading}
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-primary-dark tracking-wide">Fakultas</label>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-bold text-[#0B1E36] tracking-wide">
+              Fakultas
+            </label>
             <select
+              id="signup-fakultas"
               value={fakultas}
               onChange={(e) => setFakultas(e.target.value)}
-              className="neo-input text-xs cursor-pointer appearance-none relative"
+              className="auth-input-light cursor-pointer appearance-none"
               disabled={loading}
             >
-              <option value="" disabled className="text-text-muted">
+              <option value="" disabled>
                 Pilih Fakultas
               </option>
               {FAKULTAS_LIST.map((f) => (
@@ -178,56 +167,112 @@ export default function SignupPage() {
             </select>
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-primary-dark tracking-wide">Password</label>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-bold text-[#0B1E36] tracking-wide">
+              Email UNNES
+            </label>
             <input
+              id="signup-email"
+              type="text"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="nama@students.unnes.ac.id"
+              className="auth-input-light"
+              disabled={loading}
+              autoComplete="email"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-bold text-[#0B1E36] tracking-wide">
+              Password
+            </label>
+            <input
+              id="signup-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Masukkan password (min 6 karakter)"
-              className="neo-input text-xs"
+              className="auth-input-light"
               disabled={loading}
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-primary-dark tracking-wide">Konfirmasi Password</label>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-bold text-[#0B1E36] tracking-wide">
+              Konfirmasi Password
+            </label>
             <input
+              id="signup-confirm-password"
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Konfirmasi password"
-              className="neo-input text-xs"
+              className="auth-input-light"
               disabled={loading}
             />
           </div>
 
-          {/* Submit Button - strictly using .neo-button-yellow */}
+          {/* Terms Checkbox */}
+          <label className="flex items-start gap-2.5 mt-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={(e) => setAgreed(e.target.checked)}
+              className="w-4 h-4 mt-0.5 accent-[#0B1E36] border-2 border-[#0B1E36] rounded cursor-pointer shrink-0"
+            />
+            <span className="text-[11px] font-semibold text-[#4B5563] leading-tight">
+              Saya menyetujui{" "}
+              <span className="font-bold text-[#0B1E36]">
+                Ketentuan Layanan
+              </span>{" "}
+              dan{" "}
+              <span className="font-bold text-[#0B1E36]">
+                Kebijakan Privasi
+              </span>{" "}
+              UnnesHub.
+            </span>
+          </label>
+
           <button
+            id="signup-submit"
             type="submit"
-            className="neo-button-yellow w-full py-3 mt-4 text-sm font-black animate-none"
+            className="neo-button-yellow w-full py-3 mt-2 text-sm font-black"
             disabled={loading}
           >
             {loading ? (
               <span className="flex items-center gap-1.5 justify-center">
-                <svg className="animate-spin h-4 w-4 text-[#0A1D37]" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                <svg
+                  className="animate-spin h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
                 </svg>
                 Mendaftarkan...
               </span>
             ) : (
-              "Daftar"
+              "Daftar Sekarang"
             )}
           </button>
         </form>
 
         {/* Login Link */}
-        <div className="mt-8 text-center text-sm font-semibold text-text-muted">
+        <div className="mt-6 text-center text-sm font-semibold text-[#6B7280]">
           Sudah punya akun?{" "}
           <Link
             href="/login"
-            className="text-[#0A1D37] hover:text-[#F4C41B] font-extrabold hover:underline"
+            className="text-[#0B1E36] font-extrabold hover:underline"
           >
             Masuk
           </Link>

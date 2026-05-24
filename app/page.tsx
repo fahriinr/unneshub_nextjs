@@ -3,8 +3,16 @@
 import Link from "next/link";
 import { useUserSession } from "./hooks/useUserSession";
 import { useEffect, useState } from "react";
+import { authClient } from "@/lib/auth/auth-client";
 
-const CATEGORIES = ["AKADEMIK", "HOBI", "KARIR", "ORGANISASI", "EVENT"];
+const AVATAR_COLORS = [
+  "avatar-bg-0",
+  "avatar-bg-1",
+  "avatar-bg-2",
+  "avatar-bg-3",
+  "avatar-bg-4",
+  "avatar-bg-5",
+];
 
 interface CommunityItem {
   id: string;
@@ -12,46 +20,76 @@ interface CommunityItem {
   category: string;
   description: string;
   membersCount: number;
+  role?: "Admin" | "Anggota";
+  initials: string;
 }
 
-const POPULAR_COMMUNITIES: CommunityItem[] = [
+// Mock data — user's joined communities
+const MY_COMMUNITIES: CommunityItem[] = [
   {
     id: "1",
-    name: "HIMA Sistem Informasi",
-    category: "ORGANISASI",
-    description: "Wadah aspirasi dan kreasi mahasiswa Sistem Informasi Universitas Negeri Semarang.",
-    membersCount: 142,
+    name: "Teknik Informatika",
+    category: "AKADEMIK",
+    description: "Komunitas mahasiswa Teknik Informatika UNNES.",
+    membersCount: 150,
+    role: "Admin",
+    initials: "TI",
   },
   {
     id: "2",
-    name: "UKM Robotika UNNES",
+    name: "Robotika",
     category: "HOBI",
-    description: "Komunitas pecinta robotika, mikrokontroler, dan Internet of Things (IoT) UNNES.",
-    membersCount: 88,
+    description: "Komunitas pecinta robotika dan IoT UNNES.",
+    membersCount: 60,
+    role: "Anggota",
+    initials: "R",
   },
   {
     id: "3",
-    name: "Unnes Developer Student Club",
-    category: "KARIR",
-    description: "Komunitas belajar pemrograman dan pengembangan perangkat lunak mahasiswa UNNES.",
-    membersCount: 204,
+    name: "English Club",
+    category: "AKADEMIK",
+    description: "Komunitas belajar bahasa Inggris UNNES.",
+    membersCount: 75,
+    role: "Anggota",
+    initials: "EC",
   },
   {
     id: "4",
-    name: "BEM FMIPA UNNES",
-    category: "ORGANISASI",
-    description: "Badan Eksekutif Mahasiswa Fakultas Matematika dan Ilmu Pengetahuan Alam.",
-    membersCount: 312,
+    name: "Swimming Club",
+    category: "HOBI",
+    description: "Komunitas renang mahasiswa UNNES.",
+    membersCount: 30,
+    role: "Anggota",
+    initials: "SC",
   },
 ];
 
 export default function Home() {
   const { user, loading } = useUserSession();
   const [mounted, setMounted] = useState(false);
+  const [sessionUser, setSessionUser] = useState<{ name: string; email: string } | null>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Fetch session from Better Auth
+  useEffect(() => {
+    async function fetchSession() {
+      try {
+        const session = await authClient.getSession();
+        if (session?.data?.user) {
+          setSessionUser({
+            name: session.data.user.name,
+            email: session.data.user.email,
+          });
+        }
+      } catch {
+        // Session fetch failed — will fall back to localStorage user
+      }
+    }
+    if (mounted) fetchSession();
+  }, [mounted]);
 
   if (!mounted || loading) {
     return (
@@ -71,7 +109,7 @@ export default function Home() {
   if (!user || !user.isLoggedIn) {
     return (
       <div className="flex-1 bg-[#0A1D37] flex flex-col items-center justify-center px-4 py-16 relative overflow-hidden">
-        {/* Subtle decorative grid/background shapes */}
+        {/* Decorative shapes */}
         <div className="absolute inset-0 opacity-10 pointer-events-none">
           <div className="absolute top-10 left-10 w-44 h-44 rounded-full border-4 border-dashed border-white"></div>
           <div className="absolute bottom-20 right-10 w-64 h-64 border-4 border-white rotate-45"></div>
@@ -79,7 +117,6 @@ export default function Home() {
 
         {/* Hero Card */}
         <div className="w-full max-w-2xl bg-white border-2.5 border-[#0A1D37] rounded-3xl p-8 md:p-12 shadow-[8px_8px_0px_0px_#F4C41B] text-center relative z-10">
-          {/* Logo */}
           <div className="w-20 h-20 rounded-2xl bg-[#0A1D37] border-2 border-primary-dark flex items-center justify-center mx-auto mb-6 shadow-[3px_3px_0px_0px_#F4C41B]">
             <svg viewBox="0 0 100 100" className="w-14 h-14">
               <path d="M25 20 C 25 20, 25 70, 50 85 C 75 70, 75 20, 75 20 L 50 15 Z" fill="#F4C41B" stroke="#0A1D37" strokeWidth="6" />
@@ -101,24 +138,15 @@ export default function Home() {
             Wadah terpusat, aman, dan eksklusif untuk berinteraksi, berkolaborasi, berdiskusi akademik, serta membangun karir bersama mahasiswa Universitas Negeri Semarang.
           </p>
 
-          {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Link
-              href="/login"
-              className="neo-button-yellow w-full sm:w-44 py-3 text-sm font-black"
-            >
+            <Link href="/login" className="neo-button-yellow w-full sm:w-44 py-3 text-sm font-black">
               Masuk Sekarang
             </Link>
-            
-            <Link
-              href="/signup"
-              className="neo-button-white w-full sm:w-44 py-3 text-sm font-black"
-            >
+            <Link href="/signup" className="neo-button-white w-full sm:w-44 py-3 text-sm font-black">
               Daftar Akun
             </Link>
           </div>
 
-          {/* Domain Validation Note */}
           <p className="text-[10px] font-extrabold text-red-600 mt-6 bg-red-50 border border-red-300 rounded px-3 py-1.5 inline-block">
             ⚠️ Login & pendaftaran memerlukan email institusi aktif: @students.unnes.ac.id
           </p>
@@ -127,115 +155,86 @@ export default function Home() {
     );
   }
 
-  // LOGGED IN DASHBOARD VIEW
-  return (
-    <div className="flex-1 max-w-6xl w-full mx-auto px-4 py-8 bg-[#FDFBF7] flex flex-col gap-8">
-      {/* Welcome Banner */}
-      <div className="neo-card-thick bg-white p-6 md:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-        <div className="flex flex-col gap-2">
-          <span className="text-xs font-black uppercase tracking-wider text-text-muted">
-            Selamat Datang Kembali,
-          </span>
-          <h2 className="text-2xl md:text-3xl font-black text-primary-dark tracking-tight">
-            🎓 {user.name}
-          </h2>
-          <p className="text-xs font-bold text-text-muted">
-            Fakultas: {user.fakultas} | NIM: {user.nim}
-          </p>
-        </div>
+  // Determine display name — prefer Better Auth session, fallback to localStorage
+  const displayName = sessionUser?.name || user.name;
+  const firstName = displayName.split(" ")[0];
 
-        <div className="flex gap-3">
-          <Link href="/profile" className="neo-button-white px-5 py-2.5 text-xs font-black">
-            👤 Edit Profil Saya
+  // LOGGED IN MOBILE-FIRST HOME VIEW
+  return (
+    <div className="flex-1 w-full mx-auto bg-[#FDFBF7] flex flex-col">
+      {/* Header Section */}
+      <div className="px-4 pt-6 pb-4 max-w-6xl mx-auto w-full">
+        <div className="flex items-center justify-between mb-1">
+          <div>
+            <h2 className="text-2xl md:text-3xl font-black text-primary-dark tracking-tight">
+              Halo, {firstName}!
+            </h2>
+            <p className="text-sm font-semibold text-text-muted mt-1">
+              Selamat datang di komunitas kampus UNNES
+            </p>
+          </div>
+          <Link href="/profile" className="w-10 h-10 rounded-full border-2 border-primary-dark bg-amber-50 flex items-center justify-center shadow-[2px_2px_0px_0px_var(--color-primary-dark)] hover:translate-y-[-1px] transition-all flex-shrink-0">
+            {user.profilePicture ? (
+              <img src={user.profilePicture} alt={user.name} className="w-full h-full object-cover rounded-full" />
+            ) : (
+              <span className="font-bold text-sm text-primary-dark">{displayName.charAt(0)}</span>
+            )}
           </Link>
         </div>
       </div>
 
-      {/* Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Left and Mid Column: Communities Feed */}
-        <div className="lg:col-span-2 flex flex-col gap-6">
-          <div className="flex justify-between items-center pb-2 border-b-2 border-primary-dark">
-            <h3 className="text-xl font-black text-primary-dark tracking-tight">
-              🏘️ Jelajahi Komunitas
-            </h3>
-            <span className="text-xs font-black uppercase tracking-wider text-text-muted">
-              {POPULAR_COMMUNITIES.length} Tersedia
-            </span>
-          </div>
-
-          {/* Communities Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {POPULAR_COMMUNITIES.map((c) => (
-              <div key={c.id} className="neo-card bg-white p-5 flex flex-col justify-between gap-4">
-                <div className="flex flex-col gap-2">
-                  <div className="flex justify-between items-start gap-2">
-                    <span className="text-[9px] font-black uppercase bg-amber-100 text-amber-800 border border-amber-300 rounded px-2 py-0.5">
-                      {c.category}
-                    </span>
-                    <span className="text-[10px] font-extrabold text-text-muted">
-                      👥 {c.membersCount} Anggota
-                    </span>
-                  </div>
-
-                  <h4 className="font-extrabold text-base text-primary-dark leading-tight line-clamp-1">
-                    {c.name}
-                  </h4>
-                  <p className="text-xs font-semibold text-text-muted line-clamp-2 leading-relaxed">
-                    {c.description}
-                  </p>
-                </div>
-
-                <Link
-                  href={`/community/${c.id}`}
-                  className="neo-button-yellow text-center py-2 text-xs font-black w-full"
-                >
-                  Kunjungi Komunitas
-                </Link>
-              </div>
-            ))}
-          </div>
+      {/* Category Tab */}
+      <div className="px-4 max-w-6xl mx-auto w-full">
+        <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
+          <span className="neo-badge-yellow text-xs whitespace-nowrap cursor-pointer">KOMUNITASMU</span>
         </div>
+      </div>
 
-        {/* Right Column: Sidebar */}
-        <div className="flex flex-col gap-6">
-          {/* Categories card */}
-          <div className="neo-card bg-white p-5 flex flex-col gap-4">
-            <h3 className="font-black text-sm text-primary-dark uppercase tracking-wider border-b-2 border-slate-100 pb-2">
-              📌 Kategori Komunitas
-            </h3>
-            <div className="flex flex-wrap gap-2 pt-1">
-              {CATEGORIES.map((cat) => (
-                <span key={cat} className="neo-badge text-xs bg-white cursor-default">
-                  {cat}
+      {/* Community List */}
+      <div className="flex-1 px-4 max-w-6xl mx-auto w-full">
+        <div className="flex flex-col gap-3">
+          {MY_COMMUNITIES.map((community, idx) => (
+            <Link
+              key={community.id}
+              href={`/community/${community.id}`}
+              className="flex items-center gap-3 bg-white border-2 border-primary-dark rounded-xl p-3.5 shadow-[3px_3px_0px_0px_var(--color-primary-dark)] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[4px_4px_0px_0px_var(--color-primary-dark)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_0px_var(--color-primary-dark)] transition-all animate-fade-in-up"
+              style={{ animationDelay: `${idx * 60}ms` }}
+              id={`community-card-${community.id}`}
+            >
+              {/* Community Avatar */}
+              <div className={`w-12 h-12 rounded-xl ${AVATAR_COLORS[idx % AVATAR_COLORS.length]} flex items-center justify-center flex-shrink-0 border-2 border-primary-dark shadow-[2px_2px_0px_0px_var(--color-primary-dark)]`}>
+                <span className="font-black text-sm">{community.initials}</span>
+              </div>
+
+              {/* Community Info */}
+              <div className="flex-1 min-w-0">
+                <h3 className="font-extrabold text-sm text-primary-dark truncate">{community.name}</h3>
+                <p className="text-[11px] font-semibold text-text-muted">{community.membersCount} anggota</p>
+              </div>
+
+              {/* Role Badge */}
+              {community.role && (
+                <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg border flex-shrink-0 ${
+                  community.role === "Admin"
+                    ? "bg-amber-100 text-amber-800 border-amber-300"
+                    : "bg-slate-100 text-slate-600 border-slate-300"
+                }`}>
+                  {community.role}
                 </span>
-              ))}
-            </div>
-          </div>
-
-          {/* Quick Info card */}
-          <div className="neo-card bg-amber-50 p-5 flex flex-col gap-3.5 border-2 border-primary-dark">
-            <h3 className="font-black text-sm text-primary-dark uppercase tracking-wider border-b border-dashed border-primary-dark pb-2">
-              📢 Informasi Platform
-            </h3>
-            <div className="flex flex-col gap-2.5 text-xs font-semibold text-primary-dark">
-              <div className="flex gap-2">
-                <span>🔐</span>
-                <span>Validasi mahasiswa eksklusif menggunakan email Unnes.</span>
-              </div>
-              <div className="flex gap-2">
-                <span>🕵️</span>
-                <span>Dukungan post anonymous aman (real identity tersimpan & diawasi Global Admin).</span>
-              </div>
-              <div className="flex gap-2">
-                <span>💼</span>
-                <span>RBAC terintegrasi: Mahasiswa, Community Admin, Global Admin.</span>
-              </div>
-            </div>
-          </div>
+              )}
+            </Link>
+          ))}
         </div>
 
+        {/* Explore More */}
+        <div className="mt-6 mb-8">
+          <Link
+            href="/community/join"
+            className="neo-button-white w-full py-3 text-xs font-black"
+          >
+            🔍 Jelajahi & Join Komunitas Lainnya
+          </Link>
+        </div>
       </div>
     </div>
   );
