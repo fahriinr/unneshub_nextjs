@@ -18,3 +18,47 @@ Origin: http://localhost:3000
   "email": "user@students.unnes.ac.id",
   "password": "Password123!"
 }
+
+###
+
+GET http://localhost:3000/api/auth/get-session
+Origin: http://localhost:3000
+
+###
+
+# @name getCommunities
+GET http://localhost:3000/api/communities
+
+###
+
+# @name createCommunity
+POST http://localhost:3000/api/communities
+Content-Type: application/json
+Origin: http://localhost:3000
+
+{
+  "name": "Fotografi UNNES",
+  "slug": "fotografi-unnes",
+  "description": "Komunitas pecinta fotografi UNNES",
+  "rules": "No toxic behavior.",
+  "category": "HOBI"
+}
+
+###
+
+# Replace the COMMUNITY_ID with an actual ID from CREATE response
+# @name getCommunityDetails
+GET http://localhost:3000/api/communities/3e274c5a-6f1f-4423-b33d-7b0c7ff8d621
+
+###
+
+# Replace the COMMUNITY_ID with an actual ID from CREATE response
+# @name joinCommunity
+POST http://localhost:3000/api/communities/3e274c5a-6f1f-4423-b33d-7b0c7ff8d621/join
+Origin: http://localhost:3000
+
+###
+
+# Replace the COMMUNITY_ID with an actual ID from CREATE response
+# @name getCommunityMembers
+GET http://localhost:3000/api/communities/3e274c5a-6f1f-4423-b33d-7b0c7ff8d621/members
