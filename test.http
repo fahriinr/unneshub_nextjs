@@ -161,3 +161,10 @@ Origin: http://localhost:3000
 # @name deleteComment
 DELETE http://localhost:3000/api/comments/a8ac4d27-ee11-4e66-be48-7ea614fd93e1
 Origin: http://localhost:3000
+
+###
+
+# @name toggleLikePost
+# First call will like the post, second call will unlike it (toggle behavior)
+POST http://localhost:3000/api/posts/c133a34a-8438-4a05-993e-e75e065f2452/like
+Origin: http://localhost:3000
