@@ -89,13 +89,13 @@ Origin: http://localhost:3000
 
 # Replace the POST_ID with an actual ID from CREATE response
 # @name getPostDetails
-GET http://localhost:3000/api/posts/d4afb7ff-a69e-41ad-a179-d6a5f32d3a17
+GET http://localhost:3000/api/posts/c133a34a-8438-4a05-993e-e75e065f2452
 
 ###
 
 # Replace the POST_ID with an actual ID from CREATE response
 # @name updatePost
-PATCH http://localhost:3000/api/posts/d4afb7ff-a69e-41ad-a179-d6a5f32d3a17
+PATCH http://localhost:3000/api/posts/c133a34a-8438-4a05-993e-e75e065f2452
 Content-Type: application/json
 Origin: http://localhost:3000
 
@@ -109,5 +109,55 @@ Origin: http://localhost:3000
 
 # Replace the POST_ID with an actual ID from CREATE response
 # @name deletePost
-DELETE http://localhost:3000/api/posts/d4afb7ff-a69e-41ad-a179-d6a5f32d3a17
+DELETE http://localhost:3000/api/posts/c133a34a-8438-4a05-993e-e75e065f2452
+Origin: http://localhost:3000
+
+###
+
+# @name createComment
+POST http://localhost:3000/api/comments
+Content-Type: application/json
+Origin: http://localhost:3000
+
+{
+  "content": "Keren sekali tipsnya, sangat bermanfaat bagi pemula!",
+  "postId": "c133a34a-8438-4a05-993e-e75e065f2452"
+}
+
+###
+
+# Replace COMMENT_ID with actual ID from createComment response
+# @name createReplyComment
+POST http://localhost:3000/api/comments
+Content-Type: application/json
+Origin: http://localhost:3000
+
+{
+  "content": "Sama-sama, senang bisa membantu!",
+  "postId": "c133a34a-8438-4a05-993e-e75e065f2452",
+  "parentId": "14893d40-4e90-46cf-b345-8afed16c1ffc"
+}
+
+###
+
+# @name getComments
+GET http://localhost:3000/api/comments?postId=c133a34a-8438-4a05-993e-e75e065f2452
+
+###
+
+# Replace COMMENT_ID with actual ID of your comment
+# @name updateComment
+PATCH http://localhost:3000/api/comments/14893d40-4e90-46cf-b345-8afed16c1ffc
+Content-Type: application/json
+Origin: http://localhost:3000
+
+{
+  "content": "Sangat bermanfaat bagi pemula di UNNES! (Updated)"
+}
+
+###
+
+# Replace COMMENT_ID with actual ID of your comment
+# @name deleteComment
+DELETE http://localhost:3000/api/comments/a8ac4d27-ee11-4e66-be48-7ea614fd93e1
 Origin: http://localhost:3000

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useUserSession } from "../hooks/useUserSession";
 
@@ -31,18 +32,32 @@ export default function ProfilePage() {
   const [editMinat, setEditMinat] = useState<string[]>([]);
   const [newMinatTag, setNewMinatTag] = useState("");
 
+  const [prevUser, setPrevUser] = useState<unknown>(null);
+
   // Sync state with user data once loaded
-  useEffect(() => {
+  if (user && user !== prevUser) {
+    setPrevUser(user);
+    setEditName(user.name || "");
+    setEditNim(user.nim || "");
+    setEditFakultas(user.fakultas || "");
+    setEditJurusan(user.jurusan || "");
+    setEditProdi(user.prodi || "");
+    setEditAngkatan(user.angkatan || "");
+    setEditMinat(user.minat || []);
+  }
+
+  const handleCancel = () => {
     if (user) {
-      setEditName(user.name);
-      setEditNim(user.nim);
-      setEditFakultas(user.fakultas);
-      setEditJurusan(user.jurusan);
-      setEditProdi(user.prodi);
-      setEditAngkatan(user.angkatan);
+      setEditName(user.name || "");
+      setEditNim(user.nim || "");
+      setEditFakultas(user.fakultas || "");
+      setEditJurusan(user.jurusan || "");
+      setEditProdi(user.prodi || "");
+      setEditAngkatan(user.angkatan || "");
       setEditMinat(user.minat || []);
     }
-  }, [user, isEditing]);
+    setIsEditing(false);
+  };
 
   // Route protection
   useEffect(() => {
@@ -125,7 +140,7 @@ export default function ProfilePage() {
             {/* Avatar Container (overlapped) */}
             <div className="relative -mt-20 md:-mt-24 w-28 h-28 md:w-32 md:h-32 rounded-full border-4 border-primary-dark bg-white overflow-hidden shadow-[3px_3px_0px_0px_var(--color-primary-dark)] flex items-center justify-center z-10">
               {user.profilePicture ? (
-                <img src={user.profilePicture} alt={user.name} className="w-full h-full object-cover" />
+                <Image src={user.profilePicture} alt={user.name} width={128} height={128} unoptimized className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full bg-[#FEF3C7] flex items-center justify-center">
                   <svg className="w-14 h-14 text-primary-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -213,7 +228,7 @@ export default function ProfilePage() {
             <div className="flex justify-between items-center pb-4 border-b-2 border-slate-100 mb-6">
               <h3 className="text-xl font-extrabold text-primary-dark tracking-tight">📝 Edit Profil Saya</h3>
               <button
-                onClick={() => setIsEditing(false)}
+                onClick={handleCancel}
                 className="w-8 h-8 rounded-full border border-primary-dark flex items-center justify-center font-bold text-primary-dark hover:bg-slate-50 cursor-pointer"
               >
                 ✕
@@ -330,7 +345,7 @@ export default function ProfilePage() {
               <div className="flex justify-end gap-3 mt-4 border-t-2 border-slate-100 pt-4">
                 <button
                   type="button"
-                  onClick={() => setIsEditing(false)}
+                  onClick={handleCancel}
                   className="neo-button-white text-xs px-4 py-2"
                 >
                   Batal
