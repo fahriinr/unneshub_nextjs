@@ -5,15 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useUserSession } from "../../hooks/useUserSession";
 
-const AVATAR_COLORS = [
-  "avatar-bg-0",
-  "avatar-bg-1",
-  "avatar-bg-2",
-  "avatar-bg-3",
-  "avatar-bg-4",
-  "avatar-bg-5",
-];
-
 interface CommunityListItem {
   id: string;
   name: string;
@@ -21,25 +12,54 @@ interface CommunityListItem {
   membersCount: number;
   initials: string;
   isJoined: boolean;
+  avatarColor: string;
 }
 
-// Mock community data
 const MOCK_COMMUNITIES: CommunityListItem[] = [
-  { id: "1", name: "Teknik Informatika", category: "AKADEMIK", membersCount: 150, initials: "TI", isJoined: true },
-  { id: "2", name: "Robotika", category: "HOBI", membersCount: 60, initials: "R", isJoined: false },
-  { id: "3", name: "English Club", category: "AKADEMIK", membersCount: 75, initials: "EC", isJoined: false },
-  { id: "4", name: "Swimming Club", category: "HOBI", membersCount: 30, initials: "SC", isJoined: false },
-  { id: "5", name: "Developer Student Club", category: "KARIR", membersCount: 204, initials: "DS", isJoined: false },
-  { id: "6", name: "BEM FMIPA", category: "ORGANISASI", membersCount: 312, initials: "BF", isJoined: false },
-  { id: "7", name: "Fotografi UNNES", category: "HOBI", membersCount: 45, initials: "FU", isJoined: false },
-  { id: "8", name: "Debat Bahasa Inggris", category: "AKADEMIK", membersCount: 38, initials: "DB", isJoined: false },
+  {
+    id: "1",
+    name: "Teknik Informatika",
+    category: "AKADEMIK",
+    membersCount: 150,
+    initials: "TI",
+    isJoined: true,
+    avatarColor: "bg-emerald-700 text-white",
+  },
+  {
+    id: "2",
+    name: "Robotika",
+    category: "HOBI",
+    membersCount: 40,
+    initials: "R",
+    isJoined: false,
+    avatarColor: "bg-red-800 text-white",
+  },
+  {
+    id: "3",
+    name: "English Club",
+    category: "AKADEMIK",
+    membersCount: 70,
+    initials: "EC",
+    isJoined: false,
+    avatarColor: "bg-indigo-900 text-white",
+  },
+  {
+    id: "4",
+    name: "Swimming Club",
+    category: "HOBI",
+    membersCount: 30,
+    initials: "SC",
+    isJoined: false,
+    avatarColor: "bg-amber-600 text-white",
+  },
 ];
 
 export default function JoinCommunityPage() {
   const router = useRouter();
   const { user, loading } = useUserSession();
   const [search, setSearch] = useState("");
-  const [communities, setCommunities] = useState<CommunityListItem[]>(MOCK_COMMUNITIES);
+  const [communities, setCommunities] =
+    useState<CommunityListItem[]>(MOCK_COMMUNITIES);
   const [successToast, setSuccessToast] = useState("");
 
   // Route protection
@@ -49,36 +69,58 @@ export default function JoinCommunityPage() {
     }
   }, [user, loading, router]);
 
-  // --- REAL API INTEGRATION (commented out for now) ---
-  // useEffect(() => {
-  //   async function fetchCommunities() {
-  //     try {
-  //       const res = await fetch("/api/communities");
-  //       if (res.ok) {
-  //         const data = await res.json();
-  //         setCommunities(data.communities.map((c: any) => ({
-  //           id: c.id,
-  //           name: c.name,
-  //           category: c.category,
-  //           membersCount: c._count?.members || 0,
-  //           initials: c.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase(),
-  //           isJoined: c.isJoined || false,
-  //         })));
-  //       }
-  //     } catch (error) {
-  //       console.error("Failed to fetch communities:", error);
-  //     }
-  //   }
-  //   if (user?.isLoggedIn) fetchCommunities();
-  // }, [user]);
+  // Load custom created communities from localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("unneshub_new_communities");
+      if (stored) {
+        try {
+          const customComms = JSON.parse(stored);
+          const mapped = customComms.map((c: any) => ({
+            id: c.id,
+            name: c.name,
+            category: c.category,
+            membersCount: c.membersCount || 1,
+            initials: c.initials,
+            isJoined: c.isJoined ?? true,
+            avatarColor: "bg-emerald-700 text-white",
+          }));
+
+          setCommunities((prev) => {
+            const filteredPrev = prev.filter(
+              (p) => !mapped.some((m: any) => m.id === p.id),
+            );
+            return [...mapped, ...filteredPrev];
+          });
+        } catch (e) {
+          console.error("Failed to parse custom communities:", e);
+        }
+      }
+    }
+  }, []);
 
   if (loading || !user) {
     return (
       <div className="flex-1 flex items-center justify-center p-8 bg-[#FDFBF7]">
-        <div className="text-center font-bold text-primary-dark">
-          <svg className="animate-spin h-8 w-8 mx-auto mb-4 text-primary-dark" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+        <div className="text-center font-bold text-[#0B1E36]">
+          <svg
+            className="animate-spin h-8 w-8 mx-auto mb-4 text-[#0B1E36]"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            />
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            />
           </svg>
           Memuat komunitas...
         </div>
@@ -87,27 +129,14 @@ export default function JoinCommunityPage() {
   }
 
   const filteredCommunities = communities.filter((c) =>
-    c.name.toLowerCase().includes(search.toLowerCase())
+    c.name.toLowerCase().includes(search.toLowerCase()),
   );
 
   const handleJoin = (communityId: string) => {
-    // --- REAL API INTEGRATION (commented out for now) ---
-    // async function joinCommunity() {
-    //   try {
-    //     const res = await fetch(`/api/communities/${communityId}/join`, {
-    //       method: "POST",
-    //     });
-    //     if (!res.ok) throw new Error("Failed to join");
-    //   } catch (error) {
-    //     console.error("Failed to join community:", error);
-    //   }
-    // }
-    // joinCommunity();
-
     setCommunities((prev) =>
       prev.map((c) =>
-        c.id === communityId ? { ...c, isJoined: !c.isJoined } : c
-      )
+        c.id === communityId ? { ...c, isJoined: !c.isJoined } : c,
+      ),
     );
     const community = communities.find((c) => c.id === communityId);
     if (community) {
@@ -120,94 +149,120 @@ export default function JoinCommunityPage() {
   };
 
   return (
-    <div className="flex-1 w-full mx-auto bg-[#FDFBF7] flex flex-col">
+    <div className="flex-1 w-full mx-auto bg-white flex flex-col min-h-screen">
       {/* Toast */}
       {successToast && (
-        <div className="fixed bottom-20 left-4 right-4 md:left-auto md:right-5 md:bottom-5 z-50 bg-[#F4C41B] border-2 border-primary-dark text-primary-dark font-extrabold px-5 py-3 rounded-lg shadow-[4px_4px_0px_0px_#0A1D37] text-center text-sm animate-fade-in">
+        <div className="fixed bottom-20 left-4 right-4 md:left-auto md:right-5 md:bottom-5 z-50 bg-[#F2C010] text-[#0B1E36] font-extrabold px-5 py-3 rounded-xl shadow-lg text-center text-sm animate-fade-in">
           🎉 {successToast}
         </div>
       )}
 
-      {/* Header */}
-      <div className="px-4 pt-6 pb-4 max-w-6xl mx-auto w-full">
-        <h1 className="text-2xl font-black text-primary-dark tracking-tight mb-4">
+      {/* Dark Navy Header Banner matching Screen 2
+      <div className="bg-[#0B1E36] px-4 py-4 flex items-center justify-between w-full shadow-sm">
+        <span className="text-white font-black text-xl tracking-tight">UnnesHub</span>
+        <button className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md">
+          <svg className="w-4.5 h-4.5 text-[#0B1E36]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a9.041 9.041 0 01-3.185 0M17 11V7a5 5 0 00-7-4.887A5.006 5.006 0 005 7v4a5.986 5.986 0 01-.294 1.828l-1.005 3.013c-.115.346.124.694.487.694h13.624c.363 0 .602-.348.487-.694l-1.005-3.013a5.986 5.986 0 01-.294-1.828z" />
+          </svg>
+        </button>
+      </div> */}
+
+      {/* Screen Title & Search Block */}
+      <div className="px-4 pt-6 pb-4 w-full">
+        <h1 className="text-xl font-extrabold text-[#0B1E36] tracking-tight mb-4">
           Join Komunitas
         </h1>
 
-        {/* Search */}
+        {/* Gray Rounded Search Input Box matching Screen 2 */}
         <div className="relative">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+          <svg
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8FA0AF]"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            />
           </svg>
           <input
             id="community-search"
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari komunitas..."
-            className="w-full pl-10 pr-4 py-2.5 bg-white border-2 border-primary-dark rounded-xl text-sm font-semibold text-primary-dark outline-none focus:shadow-[3px_3px_0px_0px_var(--color-primary-dark)] transition-all"
+            placeholder="Search communities..."
+            className="w-full pl-10 pr-4 py-2.5 bg-[#E2E5E9] rounded-xl text-xs font-bold text-[#0B1E36] outline-none placeholder-[#8FA0AF] transition-all"
           />
         </div>
       </div>
 
-      {/* Community List */}
-      <div className="flex-1 px-4 max-w-6xl mx-auto w-full pb-4">
+      {/* Community List exactly matching Screen 2 */}
+      <div className="flex-1 px-4 w-full pb-24">
         <div className="flex flex-col gap-3">
           {filteredCommunities.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-sm font-bold text-text-muted">Tidak ada komunitas yang ditemukan.</p>
+              <p className="text-xs font-bold text-slate-400">
+                Tidak ada komunitas yang ditemukan.
+              </p>
             </div>
           ) : (
             filteredCommunities.map((community, idx) => (
-              <div
+              <Link
                 key={community.id}
-                className="flex items-center gap-3 bg-white border-2 border-primary-dark rounded-xl p-3.5 shadow-[3px_3px_0px_0px_var(--color-primary-dark)] transition-all animate-fade-in-up"
-                style={{ animationDelay: `${idx * 40}ms` }}
+                href={`/community/${community.id}`}
+                className="flex items-center gap-3 bg-[#E2E5E9] rounded-xl p-3.5 transition-all hover:bg-slate-200/80 cursor-pointer"
                 id={`join-community-${community.id}`}
               >
-                {/* Avatar */}
-                <div className={`w-12 h-12 rounded-xl ${AVATAR_COLORS[idx % AVATAR_COLORS.length]} flex items-center justify-center flex-shrink-0 border-2 border-primary-dark shadow-[2px_2px_0px_0px_var(--color-primary-dark)]`}>
-                  <span className="font-black text-sm">{community.initials}</span>
+                {/* Abbreviation square avatar box */}
+                <div
+                  className={`w-11 h-11 rounded-lg ${community.avatarColor} flex items-center justify-center shrink-0 font-extrabold text-sm shadow-sm`}
+                >
+                  {community.initials}
                 </div>
 
-                {/* Info */}
+                {/* Name + Member Subtexts */}
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-extrabold text-sm text-primary-dark truncate">{community.name}</h3>
-                  <p className="text-[11px] font-semibold text-text-muted">{community.membersCount} anggota</p>
+                  <h3 className="font-extrabold text-xs text-[#0B1E36] leading-tight truncate">
+                    {community.name}
+                  </h3>
+                  <p className="text-[9px] font-bold text-slate-500 mt-0.5">
+                    {community.membersCount} anggota
+                  </p>
                 </div>
 
-                {/* Join/Leave Button */}
+                {/* White pill Join button */}
                 <button
-                  onClick={() => handleJoin(community.id)}
-                  className={`text-[11px] font-black px-4 py-1.5 rounded-lg border-2 transition-all cursor-pointer flex-shrink-0 ${
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleJoin(community.id);
+                  }}
+                  className={`text-[10px] font-extrabold px-5 py-1.5 rounded-full border transition-all cursor-pointer shrink-0 ${
                     community.isJoined
-                      ? "bg-slate-100 text-slate-500 border-slate-300 hover:bg-red-50 hover:text-red-600 hover:border-red-300"
-                      : "bg-white text-primary-dark border-primary-dark shadow-[2px_2px_0px_0px_var(--color-primary-dark)] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_0px_var(--color-primary-dark)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_0px_var(--color-primary-dark)]"
+                      ? "bg-slate-300 border-transparent text-slate-600 hover:bg-red-50 hover:text-red-600"
+                      : "bg-white border-transparent text-[#0B1E36] hover:bg-slate-50 shadow-sm"
                   }`}
                   id={`join-btn-${community.id}`}
                 >
                   {community.isJoined ? "Joined" : "Join"}
                 </button>
-              </div>
+              </Link>
             ))
           )}
         </div>
       </div>
 
-      {/* FAB — Create Community */}
+      {/* FAB - Yellow Minimalist Circle exactly matching Screen 2 */}
       <Link
-        href="#"
-        onClick={(e) => {
-          e.preventDefault();
-          setSuccessToast("Fitur buat komunitas segera hadir!");
-          setTimeout(() => setSuccessToast(""), 2500);
-        }}
-        className="fab"
+        href="/community/create"
+        className="fixed bottom-20 right-5 w-12 h-12 rounded-full bg-[#F2C010] flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95 cursor-pointer z-40"
         id="fab-create-community"
       >
-        <svg className="w-7 h-7 text-primary-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-        </svg>
+        <span className="text-2xl font-black text-[#0B1E36] leading-none">
+          +
+        </span>
       </Link>
     </div>
   );
