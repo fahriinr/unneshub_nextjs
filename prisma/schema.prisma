@@ -159,6 +159,7 @@ model Post {
   title       String?
   content     String   @db.Text
   tag         String?
+  imageUrl    String?  @map("image_url")
   isAnonymous Boolean  @default(false) @map("is_anonymous")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")

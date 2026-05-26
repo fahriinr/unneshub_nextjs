@@ -48,17 +48,66 @@ Origin: http://localhost:3000
 
 # Replace the COMMUNITY_ID with an actual ID from CREATE response
 # @name getCommunityDetails
-GET http://localhost:3000/api/communities/3e274c5a-6f1f-4423-b33d-7b0c7ff8d621
+GET http://localhost:3000/api/communities/cc7ad9a8-2788-44e6-a316-9149a949237c
 
 ###
 
 # Replace the COMMUNITY_ID with an actual ID from CREATE response
 # @name joinCommunity
-POST http://localhost:3000/api/communities/3e274c5a-6f1f-4423-b33d-7b0c7ff8d621/join
+POST http://localhost:3000/api/communities/cc7ad9a8-2788-44e6-a316-9149a949237c/join
 Origin: http://localhost:3000
 
 ###
 
 # Replace the COMMUNITY_ID with an actual ID from CREATE response
+# Replace the COMMUNITY_ID with an actual ID from CREATE response
 # @name getCommunityMembers
-GET http://localhost:3000/api/communities/3e274c5a-6f1f-4423-b33d-7b0c7ff8d621/members
+GET http://localhost:3000/api/communities/cc7ad9a8-2788-44e6-a316-9149a949237c/members
+
+###
+
+# @name getPosts
+GET http://localhost:3000/api/posts?communityId=cc7ad9a8-2788-44e6-a316-9149a949237c&limit=5&page=1
+
+###
+
+# @name createPost
+POST http://localhost:3000/api/posts
+Content-Type: application/json
+Origin: http://localhost:3000
+
+{
+  "title": "Belajar Fotografi Pemula",
+  "content": "Ini adalah isi artikel tentang dasar-dasar fotografi di UNNES.",
+  "tag": "Sharing",
+  "imageUrl": "https://images.unsplash.com/photo-1542038784456-1ea8e935640e",
+  "isAnonymous": false,
+  "communityId": "cc7ad9a8-2788-44e6-a316-9149a949237c"
+}
+
+###
+
+# Replace the POST_ID with an actual ID from CREATE response
+# @name getPostDetails
+GET http://localhost:3000/api/posts/d4afb7ff-a69e-41ad-a179-d6a5f32d3a17
+
+###
+
+# Replace the POST_ID with an actual ID from CREATE response
+# @name updatePost
+PATCH http://localhost:3000/api/posts/d4afb7ff-a69e-41ad-a179-d6a5f32d3a17
+Content-Type: application/json
+Origin: http://localhost:3000
+
+{
+  "title": "Belajar Fotografi Pemula (Updated)",
+  "content": "Konten dasar-dasar fotografi telah diperbarui dengan tips komposisi.",
+  "tag": "Tips"
+}
+
+###
+
+# Replace the POST_ID with an actual ID from CREATE response
+# @name deletePost
+DELETE http://localhost:3000/api/posts/d4afb7ff-a69e-41ad-a179-d6a5f32d3a17
+Origin: http://localhost:3000
