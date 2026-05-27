@@ -130,6 +130,7 @@ model Community {
 
   @@index([status])
   @@index([category])
+  @@index([createdAt])
   @@map("communities")
 }
 

@@ -2,7 +2,27 @@ import { prisma } from "../prisma";
 import { auth } from "../auth/auth";
 import { headers } from "next/headers";
 import { CreateCommunityInput } from "../validations/community";
-import { CommunityCategory, CommunityStatus, Prisma } from "../../app/generated/prisma/client";
+import { CommunityCategory, CommunityStatus, Prisma, UserRole } from "../../app/generated/prisma/client";
+
+interface CurrentUserSession {
+  id: string;
+  role: UserRole;
+}
+
+async function getCurrentUserOrNull(): Promise<CurrentUserSession | null> {
+  try {
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+    if (!session || !session.user) return null;
+    return {
+      id: session.user.id,
+      role: session.user.role as UserRole,
+    };
+  } catch {
+    return null;
+  }
+}
 
 async function getAuthenticatedUser() {
   const session = await auth.api.getSession({
@@ -12,6 +32,116 @@ async function getAuthenticatedUser() {
     throw new Error("Unauthorized: You must be logged in to perform this action");
   }
   return session.user;
+}
+
+export interface CommunityPermissions {
+  canEdit: boolean;
+  canDelete: boolean;
+  canManageMembers: boolean;
+  isCommunityAdmin: boolean;
+  isCommunityOwner: boolean;
+}
+
+export type CommunityWithPermissions<T> = T & {
+  permissions: CommunityPermissions;
+};
+
+async function enrichCommunity<T extends { id: string; creatorId: string }>(
+  community: T,
+  currentUser: CurrentUserSession | null
+): Promise<CommunityWithPermissions<T>> {
+  if (!currentUser) {
+    return {
+      ...community,
+      permissions: {
+        canEdit: false,
+        canDelete: false,
+        canManageMembers: false,
+        isCommunityAdmin: false,
+        isCommunityOwner: false,
+      },
+    };
+  }
+
+  const isGlobalAdmin = currentUser.role === "GLOBAL_ADMIN";
+  const isOwner = community.creatorId === currentUser.id;
+
+  let isAdmin = isOwner;
+  if (!isOwner) {
+    const membership = await prisma.communityMember.findUnique({
+      where: {
+        communityId_userId: {
+          communityId: community.id,
+          userId: currentUser.id,
+        },
+      },
+      select: { role: true, status: true },
+    });
+    if (membership && membership.status === "APPROVED" && membership.role === "ADMIN") {
+      isAdmin = true;
+    }
+  }
+
+  return {
+    ...community,
+    permissions: {
+      canEdit: isOwner || isAdmin || isGlobalAdmin,
+      canDelete: isOwner || isGlobalAdmin,
+      canManageMembers: isOwner || isAdmin || isGlobalAdmin,
+      isCommunityAdmin: isAdmin,
+      isCommunityOwner: isOwner,
+    },
+  };
+}
+
+async function enrichCommunities<T extends { id: string; creatorId: string }>(
+  communities: T[],
+  currentUser: CurrentUserSession | null
+): Promise<CommunityWithPermissions<T>[]> {
+  if (communities.length === 0) return [];
+  if (!currentUser) {
+    return communities.map(c => ({
+      ...c,
+      permissions: {
+        canEdit: false,
+        canDelete: false,
+        canManageMembers: false,
+        isCommunityAdmin: false,
+        isCommunityOwner: false,
+      },
+    }));
+  }
+
+  const isGlobalAdmin = currentUser.role === "GLOBAL_ADMIN";
+  const communityIds = communities.map(c => c.id);
+
+  const memberships = await prisma.communityMember.findMany({
+    where: {
+      communityId: { in: communityIds },
+      userId: currentUser.id,
+      status: "APPROVED",
+    },
+    select: { communityId: true, role: true },
+  });
+
+  const membershipMap = new Map(memberships.map(m => [m.communityId, m.role]));
+
+  return communities.map(community => {
+    const isOwner = community.creatorId === currentUser.id;
+    const memberRole = membershipMap.get(community.id);
+    const isAdmin = isOwner || memberRole === "ADMIN";
+
+    return {
+      ...community,
+      permissions: {
+        canEdit: isOwner || isAdmin || isGlobalAdmin,
+        canDelete: isOwner || isGlobalAdmin,
+        canManageMembers: isOwner || isAdmin || isGlobalAdmin,
+        isCommunityAdmin: isAdmin,
+        isCommunityOwner: isOwner,
+      },
+    };
+  });
 }
 
 export async function createCommunity(data: CreateCommunityInput) {
@@ -34,8 +164,8 @@ export async function createCommunity(data: CreateCommunityInput) {
   }
 
   // Transaction to create community and make creator an ADMIN member
-  return await prisma.$transaction(async (tx) => {
-    const community = await tx.community.create({
+  const community = await prisma.$transaction(async (tx) => {
+    const newCommunity = await tx.community.create({
       data: {
         name: data.name,
         slug: data.slug,
@@ -49,19 +179,22 @@ export async function createCommunity(data: CreateCommunityInput) {
 
     await tx.communityMember.create({
       data: {
-        communityId: community.id,
+        communityId: newCommunity.id,
         userId: user.id,
         role: "ADMIN",
         status: "APPROVED",
       },
     });
 
-    return community;
+    return newCommunity;
   });
+
+  const currentUser = await getCurrentUserOrNull();
+  return await enrichCommunity(community, currentUser);
 }
 
 export async function getCommunityById(id: string) {
-  return await prisma.community.findUnique({
+  const community = await prisma.community.findUnique({
     where: { id },
     include: {
       creator: {
@@ -80,10 +213,14 @@ export async function getCommunityById(id: string) {
       },
     },
   });
+
+  if (!community) return null;
+  const currentUser = await getCurrentUserOrNull();
+  return await enrichCommunity(community, currentUser);
 }
 
 export async function getCommunityBySlug(slug: string) {
-  return await prisma.community.findUnique({
+  const community = await prisma.community.findUnique({
     where: { slug },
     include: {
       creator: {
@@ -102,6 +239,10 @@ export async function getCommunityBySlug(slug: string) {
       },
     },
   });
+
+  if (!community) return null;
+  const currentUser = await getCurrentUserOrNull();
+  return await enrichCommunity(community, currentUser);
 }
 
 export interface GetCommunitiesOptions {
@@ -115,30 +256,57 @@ export async function getCommunities(options: GetCommunitiesOptions = {}) {
   const { category, search, limit = 10, page = 1 } = options;
   const skip = (page - 1) * limit;
 
+  const currentUser = await getCurrentUserOrNull();
+  const isGlobalAdmin = currentUser?.role === "GLOBAL_ADMIN";
+
   const where: Prisma.CommunityWhereInput = {};
 
   if (category) {
     where.category = category;
   }
 
-  if (search) {
-    where.OR = [
-      {
-        name: {
-          contains: search,
-          mode: "insensitive",
-        },
-      },
-      {
-        description: {
-          contains: search,
-          mode: "insensitive",
-        },
-      },
-    ];
+  // Enforce community status validation (only Global Admins see unapproved communities)
+  if (!isGlobalAdmin) {
+    if (currentUser) {
+      where.AND = [
+        {
+          OR: [
+            { status: "APPROVED" },
+            { creatorId: currentUser.id }
+          ]
+        }
+      ];
+    } else {
+      where.status = "APPROVED";
+    }
   }
 
-  return await prisma.community.findMany({
+  if (search) {
+    const searchCondition = {
+      OR: [
+        {
+          name: {
+            contains: search,
+            mode: "insensitive" as Prisma.QueryMode,
+          },
+        },
+        {
+          description: {
+            contains: search,
+            mode: "insensitive" as Prisma.QueryMode,
+          },
+        },
+      ],
+    };
+
+    if (where.AND) {
+      (where.AND as Prisma.CommunityWhereInput[]).push(searchCondition);
+    } else {
+      where.AND = [searchCondition];
+    }
+  }
+
+  const communities = await prisma.community.findMany({
     where,
     take: limit,
     skip,
@@ -153,6 +321,8 @@ export async function getCommunities(options: GetCommunitiesOptions = {}) {
       createdAt: "desc",
     },
   });
+
+  return await enrichCommunities(communities, currentUser);
 }
 
 export async function joinCommunity(communityId: string) {

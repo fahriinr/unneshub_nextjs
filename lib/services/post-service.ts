@@ -31,6 +31,18 @@ interface CurrentUserSession {
   role: UserRole;
 }
 
+export interface PostPermissions {
+  canEdit: boolean;
+  canDelete: boolean;
+  canManageMembers: boolean;
+  isCommunityAdmin: boolean;
+  isCommunityOwner: boolean;
+}
+
+export type PostWithPermissions<T> = T & {
+  permissions: PostPermissions;
+};
+
 async function getCurrentUserOrNull(): Promise<CurrentUserSession | null> {
   try {
     const session = await auth.api.getSession({
@@ -46,10 +58,10 @@ async function getCurrentUserOrNull(): Promise<CurrentUserSession | null> {
   }
 }
 
-function maskAnonymousAuthor(
-  post: PostWithRelations,
+function maskAnonymousAuthor<T extends PostWithRelations>(
+  post: T,
   currentUser: CurrentUserSession | null
-): PostWithRelations {
+): T {
   if (post.isAnonymous) {
     const isGlobalAdmin = currentUser?.role === "GLOBAL_ADMIN";
     if (!isGlobalAdmin) {
@@ -68,11 +80,123 @@ function maskAnonymousAuthor(
   return post;
 }
 
-export async function createPost(data: CreatePostInput): Promise<PostWithRelations> {
+async function enrichPost<T extends { userId: string; communityId: string }>(
+  post: T,
+  currentUser: CurrentUserSession | null
+): Promise<PostWithPermissions<T>> {
+  if (!currentUser) {
+    return {
+      ...post,
+      permissions: {
+        canEdit: false,
+        canDelete: false,
+        canManageMembers: false,
+        isCommunityAdmin: false,
+        isCommunityOwner: false,
+      },
+    };
+  }
+
+  const isAuthor = post.userId === currentUser.id;
+  const isGlobalAdmin = currentUser.role === "GLOBAL_ADMIN";
+
+  const community = await prisma.community.findUnique({
+    where: { id: post.communityId },
+    select: { creatorId: true },
+  });
+
+  const isOwner = community ? community.creatorId === currentUser.id : false;
+
+  let isAdmin = isOwner;
+  if (community && !isOwner) {
+    const membership = await prisma.communityMember.findUnique({
+      where: {
+        communityId_userId: {
+          communityId: post.communityId,
+          userId: currentUser.id,
+        },
+      },
+      select: { role: true, status: true },
+    });
+    if (membership && membership.status === "APPROVED" && membership.role === "ADMIN") {
+      isAdmin = true;
+    }
+  }
+
+  return {
+    ...post,
+    permissions: {
+      canEdit: isAuthor,
+      canDelete: isAuthor || isAdmin || isGlobalAdmin,
+      canManageMembers: false,
+      isCommunityAdmin: isAdmin,
+      isCommunityOwner: isOwner,
+    },
+  };
+}
+
+async function enrichPosts<T extends { userId: string; communityId: string }>(
+  posts: T[],
+  currentUser: CurrentUserSession | null
+): Promise<PostWithPermissions<T>[]> {
+  if (posts.length === 0) return [];
+  if (!currentUser) {
+    return posts.map(p => ({
+      ...p,
+      permissions: {
+        canEdit: false,
+        canDelete: false,
+        canManageMembers: false,
+        isCommunityAdmin: false,
+        isCommunityOwner: false,
+      },
+    }));
+  }
+
+  const isGlobalAdmin = currentUser.role === "GLOBAL_ADMIN";
+  const communityIds = Array.from(new Set(posts.map(p => p.communityId)));
+
+  const communities = await prisma.community.findMany({
+    where: { id: { in: communityIds } },
+    select: { id: true, creatorId: true },
+  });
+  const communityCreatorMap = new Map(communities.map(c => [c.id, c.creatorId]));
+
+  const memberships = await prisma.communityMember.findMany({
+    where: {
+      communityId: { in: communityIds },
+      userId: currentUser.id,
+      status: "APPROVED",
+    },
+    select: { communityId: true, role: true },
+  });
+  const membershipMap = new Map(memberships.map(m => [m.communityId, m.role]));
+
+  return posts.map(post => {
+    const isAuthor = post.userId === currentUser.id;
+    const creatorId = communityCreatorMap.get(post.communityId);
+    const isOwner = creatorId === currentUser.id;
+    const memberRole = membershipMap.get(post.communityId);
+    const isAdmin = isOwner || memberRole === "ADMIN";
+
+    return {
+      ...post,
+      permissions: {
+        canEdit: isAuthor,
+        canDelete: isAuthor || isAdmin || isGlobalAdmin,
+        canManageMembers: false,
+        isCommunityAdmin: isAdmin,
+        isCommunityOwner: isOwner,
+      },
+    };
+  });
+}
+
+export async function createPost(data: CreatePostInput): Promise<PostWithPermissions<PostWithRelations>> {
   // Checks if user is authenticated and an approved member of the community
   const { user } = await requireCommunityMember(data.communityId);
 
-  return await prisma.post.create({
+  const post = await prisma.post.create({
     data: {
       content: data.content,
       imageUrl: data.imageUrl || null,
@@ -101,6 +225,10 @@ export async function createPost(data: CreatePostInput): Promise<PostWithRelatio
       },
     },
   });
+
+  const currentUser = await getCurrentUserOrNull();
+  const enriched = await enrichPost(post, currentUser);
+  return maskAnonymousAuthor(enriched, currentUser);
 }
 
 export interface GetPostsOptions {
@@ -109,7 +237,7 @@ export interface GetPostsOptions {
   page?: number;
 }
 
-export async function getPosts(options: GetPostsOptions = {}): Promise<PostWithRelations[]> {
+export async function getPosts(options: GetPostsOptions = {}): Promise<PostWithPermissions<PostWithRelations>[]> {
   const { communityId, limit = 10, page = 1 } = options;
   const skip = (page - 1) * limit;
 
@@ -146,10 +274,11 @@ export async function getPosts(options: GetPostsOptions = {}): Promise<PostWithR
   });
 
   const currentUser = await getCurrentUserOrNull();
-  return posts.map((post) => maskAnonymousAuthor(post, currentUser));
+  const masked = posts.map((post) => maskAnonymousAuthor(post, currentUser));
+  return await enrichPosts(masked, currentUser);
 }
 
-export async function getPostById(id: string): Promise<PostWithRelations | null> {
+export async function getPostById(id: string): Promise<PostWithPermissions<PostWithRelations> | null> {
   const post = await prisma.post.findUnique({
     where: { id },
     include: {
@@ -175,10 +304,11 @@ export async function getPostById(id: string): Promise<PostWithRelations | null>
   if (!post) return null;
 
   const currentUser = await getCurrentUserOrNull();
-  return maskAnonymousAuthor(post, currentUser);
+  const masked = maskAnonymousAuthor(post, currentUser);
+  return await enrichPost(masked, currentUser);
 }
 
-export async function updatePost(id: string, data: UpdatePostInput): Promise<PostWithRelations> {
+export async function updatePost(id: string, data: UpdatePostInput): Promise<PostWithPermissions<PostWithRelations>> {
   const user = await requireAuth();
 
   const post = await prisma.post.findUnique({
@@ -223,10 +353,11 @@ export async function updatePost(id: string, data: UpdatePostInput): Promise<Pos
   });
 
   const currentUser = await getCurrentUserOrNull();
-  return maskAnonymousAuthor(updatedPost, currentUser);
+  const masked = maskAnonymousAuthor(updatedPost, currentUser);
+  return await enrichPost(masked, currentUser);
 }
 
-export async function deletePost(id: string): Promise<PostWithRelations> {
+export async function deletePost(id: string): Promise<PostWithPermissions<PostWithRelations>> {
   const user = await requireAuth();
 
   const post = await prisma.post.findUnique({
@@ -264,5 +395,6 @@ export async function deletePost(id: string): Promise<PostWithRelations> {
   });
 
   const currentUser = await getCurrentUserOrNull();
-  return maskAnonymousAuthor(deletedPost, currentUser);
+  const masked = maskAnonymousAuthor(deletedPost, currentUser);
+  return await enrichPost(masked, currentUser);
 }

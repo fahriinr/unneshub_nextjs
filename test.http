@@ -168,3 +168,53 @@ Origin: http://localhost:3000
 # First call will like the post, second call will unlike it (toggle behavior)
 POST http://localhost:3000/api/posts/c133a34a-8438-4a05-993e-e75e065f2452/like
 Origin: http://localhost:3000
+
+###
+
+# @name getCurrentProfile
+GET http://localhost:3000/api/profile
+Origin: http://localhost:3000
+
+###
+
+# @name updateProfile
+PATCH http://localhost:3000/api/profile
+Content-Type: application/json
+Origin: http://localhost:3000
+
+{
+  "name": "Ahmad Mahasiswa Baru",
+  "bio": "Belajar Web Development dan UI/UX",
+  "profileImage": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde",
+  "prodi": "Sistem Informasi (S1)",
+  "angkatan": "2022"
+}
+
+###
+
+# Replace USER_ID with an actual user ID
+# @name getPublicProfile
+GET http://localhost:3000/api/profile/k8YfJtUnVfUraA1nazYp0T8ZoBljKuss
+
+###
+
+# @name searchCommunities
+# Searching communities case-insensitively with pagination and newest sorting
+GET http://localhost:3000/api/communities?search=fotografi&limit=10&page=1
+
+###
+
+# @name getCommunityWithRolePermissions
+# Inspect response JSON for computed community metadata fields:
+# - permissions: { canEdit, canDelete, canManageMembers, isCommunityAdmin, isCommunityOwner }
+GET http://localhost:3000/api/communities/cc7ad9a8-2788-44e6-a316-9149a949237c
+Origin: http://localhost:3000
+
+###
+
+# @name getPostWithRolePermissions
+# Inspect response JSON for computed post metadata fields:
+# - permissions: { canEdit, canDelete, canManageMembers, isCommunityAdmin, isCommunityOwner }
+GET http://localhost:3000/api/posts/c133a34a-8438-4a05-993e-e75e065f2452
+Origin: http://localhost:3000
+
