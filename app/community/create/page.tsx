@@ -110,10 +110,6 @@ export default function CreateCommunityPage() {
       setFormError("Deskripsi komunitas minimal 10 karakter!");
       return;
     }
-    if (!ktmScanned) {
-      setFormError("Harap lakukan verifikasi KTM terlebih dahulu!");
-      return;
-    }
 
     setSubmitting(true);
 
@@ -131,41 +127,29 @@ export default function CreateCommunityPage() {
       rules: rules.trim(),
     };
 
-    // Mock Proto-storage
-    setTimeout(() => {
-      const stored = localStorage.getItem("unneshub_new_communities");
-      const currentList = stored ? JSON.parse(stored) : [];
+    try {
+      const res = await fetch("/api/communities", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
-      const newCommunity = {
-        id: `mock-${Date.now()}`,
-        name: payload.name,
-        slug: payload.slug,
-        description: payload.description,
-        category: payload.category,
-        rules: payload.rules,
-        membersCount: 1,
-        initials: payload.name
-          .split(" ")
-          .map((w) => w[0])
-          .join("")
-          .slice(0, 2)
-          .toUpperCase(),
-        isJoined: true,
-        status: "PENDING_APPROVAL",
-      };
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Gagal membuat komunitas");
+      }
 
-      localStorage.setItem(
-        "unneshub_new_communities",
-        JSON.stringify([...currentList, newCommunity]),
-      );
-      setSuccessToast(
-        "Pengajuan komunitas berhasil dikirim untuk persetujuan Global Admin! 🎉",
-      );
-
+      setSuccessToast("Komunitas berhasil dibuat! 🎉");
       setTimeout(() => {
         router.push("/community/join");
-      }, 2500);
-    }, 1500);
+      }, 2000);
+    } catch (apiError: any) {
+      setFormError(apiError.message || "Gagal membuat komunitas");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (

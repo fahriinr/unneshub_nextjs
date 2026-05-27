@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { authClient } from "@/lib/auth/auth-client";
 
 export type UserRole = "mahasiswa" | "community_admin" | "global_admin";
 
@@ -40,18 +41,45 @@ export function useUserSession() {
   useEffect(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("unneshub_user");
+      let currentUser: UserProfile | null = null;
       if (stored) {
         try {
-          setUser(JSON.parse(stored));
+          currentUser = JSON.parse(stored);
         } catch (e) {
-          setUser(DEFAULT_USER);
+          currentUser = DEFAULT_USER;
         }
       } else {
-        setUser(DEFAULT_USER);
+        currentUser = DEFAULT_USER;
         localStorage.setItem("unneshub_user", JSON.stringify(DEFAULT_USER));
       }
+      setUser(currentUser);
       setLoading(false);
     }
+  }, []);
+
+  // Sync active Better Auth session with localStorage
+  useEffect(() => {
+    async function syncSession() {
+      try {
+        const session = await authClient.getSession();
+        if (session?.data?.user) {
+          const dbUser = session.data.user;
+          setUser((prev) => {
+            const updated = {
+              ...(prev || DEFAULT_USER),
+              name: dbUser.name,
+              email: dbUser.email,
+              isLoggedIn: true,
+            };
+            localStorage.setItem("unneshub_user", JSON.stringify(updated));
+            return updated;
+          });
+        }
+      } catch (e) {
+        console.error("Session sync failed:", e);
+      }
+    }
+    syncSession();
   }, []);
 
   const saveUser = (updatedUser: UserProfile | null) => {

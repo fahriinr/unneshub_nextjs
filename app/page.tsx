@@ -5,69 +5,25 @@ import { useUserSession } from "./hooks/useUserSession";
 import { useEffect, useState } from "react";
 import { authClient } from "@/lib/auth/auth-client";
 
-const AVATAR_COLORS = [
-  "avatar-bg-0",
-  "avatar-bg-1",
-  "avatar-bg-2",
-  "avatar-bg-3",
-  "avatar-bg-4",
-  "avatar-bg-5",
-];
-
 interface CommunityItem {
   id: string;
   name: string;
   category: string;
   description: string;
   membersCount: number;
-  role?: "Admin" | "Anggota";
+  role: "Admin" | "Anggota";
   initials: string;
+  avatarColor: string;
 }
-
-// Mock data — user's joined communities
-const MY_COMMUNITIES: CommunityItem[] = [
-  {
-    id: "1",
-    name: "Teknik Informatika",
-    category: "AKADEMIK",
-    description: "Komunitas mahasiswa Teknik Informatika UNNES.",
-    membersCount: 150,
-    role: "Admin",
-    initials: "TI",
-  },
-  {
-    id: "2",
-    name: "Robotika",
-    category: "HOBI",
-    description: "Komunitas pecinta robotika dan IoT UNNES.",
-    membersCount: 60,
-    role: "Anggota",
-    initials: "R",
-  },
-  {
-    id: "3",
-    name: "English Club",
-    category: "AKADEMIK",
-    description: "Komunitas belajar bahasa Inggris UNNES.",
-    membersCount: 75,
-    role: "Anggota",
-    initials: "EC",
-  },
-  {
-    id: "4",
-    name: "Swimming Club",
-    category: "HOBI",
-    description: "Komunitas renang mahasiswa UNNES.",
-    membersCount: 30,
-    role: "Anggota",
-    initials: "SC",
-  },
-];
 
 export default function Home() {
   const { user, loading } = useUserSession();
   const [mounted, setMounted] = useState(false);
-  const [sessionUser, setSessionUser] = useState<{ name: string; email: string } | null>(null);
+  const [sessionUser, setSessionUser] = useState<{
+    name: string;
+    email: string;
+  } | null>(null);
+  const [myCommunities, setMyCommunities] = useState<CommunityItem[]>([]);
 
   useEffect(() => {
     setMounted(true);
@@ -85,19 +41,109 @@ export default function Home() {
           });
         }
       } catch {
-        // Session fetch failed — will fall back to localStorage user
+        // Fallback
       }
     }
     if (mounted) fetchSession();
   }, [mounted]);
 
+  const isLoggedIn = (user && user.isLoggedIn) || !!sessionUser;
+
+  // Fetch joined communities from database APIs
+  useEffect(() => {
+    async function fetchMyCommunities() {
+      const activeEmail = sessionUser?.email || user?.email;
+      if (!activeEmail) return;
+
+      try {
+        const res = await fetch("/api/communities");
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            const mapped = await Promise.all(
+              data.map(async (c: any) => {
+                try {
+                  const mRes = await fetch(`/api/communities/${c.id}/members`);
+                  if (mRes.ok) {
+                    const mData = await mRes.json();
+                    const userMembership = mData.find(
+                      (m: any) => m.user?.email === activeEmail,
+                    );
+
+                    if (userMembership) {
+                      const initials = c.name
+                        .split(" ")
+                        .map((w: string) => w[0])
+                        .join("")
+                        .toUpperCase()
+                        .slice(0, 2);
+
+                      const avatarColorMap: Record<string, string> = {
+                        AKADEMIK: "bg-emerald-800 text-white",
+                        HOBI: "bg-red-800 text-white",
+                        KARIR: "bg-indigo-900 text-white",
+                        ORGANISASI: "bg-amber-600 text-white",
+                        EVENT: "bg-blue-800 text-white",
+                      };
+
+                      return {
+                        id: c.id,
+                        name: c.name,
+                        category: c.category,
+                        description: c.description,
+                        membersCount: mData.length,
+                        role:
+                          userMembership.role === "ADMIN" ? "Admin" : "Anggota",
+                        initials,
+                        avatarColor:
+                          avatarColorMap[c.category] ||
+                          "bg-emerald-800 text-white",
+                      } as CommunityItem;
+                    }
+                  }
+                } catch (e) {
+                  console.warn(`Failed to fetch membership for ${c.id}:`, e);
+                }
+                return null;
+              }),
+            );
+            setMyCommunities(
+              mapped.filter((x): x is CommunityItem => x !== null),
+            );
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch my communities:", error);
+      }
+    }
+
+    if (isLoggedIn) {
+      fetchMyCommunities();
+    }
+  }, [isLoggedIn, sessionUser, user]);
+
   if (!mounted || loading) {
     return (
-      <div className="flex-1 flex items-center justify-center p-8 bg-[#FDFBF7]">
-        <div className="text-center font-bold text-primary-dark">
-          <svg className="animate-spin h-8 w-8 mx-auto mb-4 text-primary-dark" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+      <div className="flex-1 flex items-center justify-center p-8 bg-white">
+        <div className="text-center font-bold text-[#0B1E36]">
+          <svg
+            className="animate-spin h-8 w-8 mx-auto mb-4 text-[#0B1E36]"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            />
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            />
           </svg>
           Memuat halaman...
         </div>
@@ -106,49 +152,70 @@ export default function Home() {
   }
 
   // GUEST LANDING VIEW
-  if (!user || !user.isLoggedIn) {
+  if (!isLoggedIn) {
     return (
-      <div className="flex-1 bg-[#0A1D37] flex flex-col items-center justify-center px-4 py-16 relative overflow-hidden">
-        {/* Decorative shapes */}
+      <div className="flex-1 bg-[#0B1E36] flex flex-col items-center justify-center px-4 py-16 relative overflow-hidden">
         <div className="absolute inset-0 opacity-10 pointer-events-none">
-          <div className="absolute top-10 left-10 w-44 h-44 rounded-full border-4 border-dashed border-white"></div>
-          <div className="absolute bottom-20 right-10 w-64 h-64 border-4 border-white rotate-45"></div>
+          <div className="absolute top-10 left-10 w-44 h-44 rounded-full border border-dashed border-white"></div>
+          <div className="absolute bottom-20 right-10 w-64 h-64 border border-white rotate-45"></div>
         </div>
 
-        {/* Hero Card */}
-        <div className="w-full max-w-2xl bg-white border-2.5 border-[#0A1D37] rounded-3xl p-8 md:p-12 shadow-[8px_8px_0px_0px_#F4C41B] text-center relative z-10">
-          <div className="w-20 h-20 rounded-2xl bg-[#0A1D37] border-2 border-primary-dark flex items-center justify-center mx-auto mb-6 shadow-[3px_3px_0px_0px_#F4C41B]">
-            <svg viewBox="0 0 100 100" className="w-14 h-14">
-              <path d="M25 20 C 25 20, 25 70, 50 85 C 75 70, 75 20, 75 20 L 50 15 Z" fill="#F4C41B" stroke="#0A1D37" strokeWidth="6" />
-              <circle cx="50" cy="50" r="16" fill="#0A1D37" />
-              <path d="M50 65 L 50 40 M50 45 C 50 45, 42 35, 42 45 C 42 55, 50 50, 50 50 M50 48 C 50 48, 58 38, 58 48 C 58 58, 50 53, 50 53" fill="none" stroke="#22C55E" strokeWidth="5" strokeLinecap="round" />
+        <div className="w-full max-w-lg bg-white border border-slate-100 rounded-3xl p-8 shadow-xl text-center relative z-10">
+          <div className="w-16 h-16 rounded-2xl bg-[#0B1E36] flex items-center justify-center mx-auto mb-6 shadow-md">
+            <svg viewBox="0 0 100 100" className="w-10 h-10">
+              <path
+                d="M25 20 C 25 20, 25 70, 50 85 C 75 70, 75 20, 75 20 L 50 15 Z"
+                fill="#F2C010"
+                stroke="#0B1E36"
+                strokeWidth="6"
+              />
+              <circle cx="50" cy="50" r="16" fill="#0B1E36" />
+              <path
+                d="M50 65 L 50 40 M50 45 C 50 45, 42 35, 42 45 C 42 55, 50 50, 50 50 M50 48 C 50 48, 58 38, 58 48 C 58 58, 50 53, 50 53"
+                fill="none"
+                stroke="#22C55E"
+                strokeWidth="5"
+                strokeLinecap="round"
+              />
               <circle cx="50" cy="35" r="3" fill="#22C55E" />
             </svg>
           </div>
 
-          <h1 className="text-4xl md:text-5xl font-black text-primary-dark tracking-tight leading-none mb-3">
-            Unnes<span className="text-[#F4C41B] bg-[#0A1D37] px-2 py-0.5 rounded border border-primary-dark shadow-[2.5px_2.5px_0px_0px_#0A1D37] inline-block ml-1">Hub</span>
+          <h1 className="text-3xl font-extrabold text-[#0B1E36] tracking-tight mb-2">
+            Unnes
+            <span className="text-[#F2C010] bg-[#0B1E36] px-2 py-0.5 rounded shadow-sm inline-block ml-1">
+              Hub
+            </span>
           </h1>
-          
-          <p className="text-base md:text-lg font-black text-primary-dark uppercase tracking-wider mb-6">
+
+          <p className="text-xs font-black text-slate-500 uppercase tracking-wider mb-6">
             Exclusive Community Platform Mahasiswa UNNES
           </p>
 
-          <p className="text-sm font-semibold text-text-muted max-w-lg mx-auto leading-relaxed mb-8">
-            Wadah terpusat, aman, dan eksklusif untuk berinteraksi, berkolaborasi, berdiskusi akademik, serta membangun karir bersama mahasiswa Universitas Negeri Semarang.
+          <p className="text-xs font-semibold text-slate-500 max-w-md mx-auto leading-relaxed mb-8">
+            Wadah terpusat, aman, dan eksklusif untuk berinteraksi,
+            berkolaborasi, berdiskusi akademik, serta membangun karir bersama
+            mahasiswa Universitas Negeri Semarang.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Link href="/login" className="neo-button-yellow w-full sm:w-44 py-3 text-sm font-black">
+          <div className="flex flex-col gap-3 justify-center items-center">
+            <Link
+              href="/login"
+              className="w-full py-3 bg-[#F2C010] text-[#0B1E36] font-extrabold text-xs rounded-full hover:bg-[#d9a807] transition-colors shadow-md"
+            >
               Masuk Sekarang
             </Link>
-            <Link href="/signup" className="neo-button-white w-full sm:w-44 py-3 text-sm font-black">
+            <Link
+              href="/signup"
+              className="w-full py-3 bg-white border border-slate-200 text-[#0B1E36] font-extrabold text-xs rounded-full hover:bg-slate-50 transition-colors shadow-sm"
+            >
               Daftar Akun
             </Link>
           </div>
 
-          <p className="text-[10px] font-extrabold text-red-600 mt-6 bg-red-50 border border-red-300 rounded px-3 py-1.5 inline-block">
-            ⚠️ Login & pendaftaran memerlukan email institusi aktif: @students.unnes.ac.id
+          <p className="text-[9px] font-bold text-red-600 mt-6 bg-red-50 border border-red-200 rounded-xl px-4 py-2 inline-block">
+            ⚠️ Login & pendaftaran memerlukan email institusi aktif:
+            @students.unnes.ac.id
           </p>
         </div>
       </div>
@@ -156,81 +223,79 @@ export default function Home() {
   }
 
   // Determine display name — prefer Better Auth session, fallback to localStorage
-  const displayName = sessionUser?.name || user.name;
+  const displayName = sessionUser?.name || user?.name || "Figi";
   const firstName = displayName.split(" ")[0];
 
-  // LOGGED IN MOBILE-FIRST HOME VIEW
+  // LOGGED IN MOBILE-FIRST HOME VIEW (Exactly matching the mockup screenshot!)
   return (
-    <div className="flex-1 w-full mx-auto bg-[#FDFBF7] flex flex-col">
-      {/* Header Section */}
-      <div className="px-4 pt-6 pb-4 max-w-6xl mx-auto w-full">
-        <div className="flex items-center justify-between mb-1">
-          <div>
-            <h2 className="text-2xl md:text-3xl font-black text-primary-dark tracking-tight">
-              Halo, {firstName}!
-            </h2>
-            <p className="text-sm font-semibold text-text-muted mt-1">
-              Selamat datang di komunitas kampus UNNES
-            </p>
-          </div>
-          <Link href="/profile" className="w-10 h-10 rounded-full border-2 border-primary-dark bg-amber-50 flex items-center justify-center shadow-[2px_2px_0px_0px_var(--color-primary-dark)] hover:translate-y-[-1px] transition-all flex-shrink-0">
-            {user.profilePicture ? (
-              <img src={user.profilePicture} alt={user.name} className="w-full h-full object-cover rounded-full" />
-            ) : (
-              <span className="font-bold text-sm text-primary-dark">{displayName.charAt(0)}</span>
-            )}
-          </Link>
+    <div className="flex-1 w-full bg-white flex flex-col min-h-screen">
+      {/* 2. Welcome Panel matching mockup exactly */}
+      <div className="px-4 pt-7 pb-4 w-full">
+        <h2 className="text-xl font-extrabold text-[#0B1E36] tracking-tight leading-none">
+          Halo, {firstName || "Figi"}!
+        </h2>
+        <p className="text-xs font-semibold text-slate-500 mt-1.5 leading-relaxed">
+          Selamat datang di komunitas kampus UNNES
+        </p>
+      </div>
+
+      {/* 3. Rounded-t Badge Tab Block matching mockup exactly */}
+      <div className="px-4 mt-4 w-full">
+        <div className="w-36 bg-[#0B1E36] text-white font-extrabold text-[10px] uppercase tracking-wider text-center py-2.5 rounded-t-lg border-b-2 border-[#0B1E36]">
+          KOMUNITASMU
         </div>
       </div>
 
-      {/* Category Tab */}
-      <div className="px-4 max-w-6xl mx-auto w-full">
-        <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
-          <span className="neo-badge-yellow text-xs whitespace-nowrap cursor-pointer">KOMUNITASMU</span>
-        </div>
-      </div>
-
-      {/* Community List */}
-      <div className="flex-1 px-4 max-w-6xl mx-auto w-full">
+      {/* 4. Community Card Lists exactly matching mockup */}
+      <div className="flex-1 px-4 w-full pb-24">
         <div className="flex flex-col gap-3">
-          {MY_COMMUNITIES.map((community, idx) => (
-            <Link
-              key={community.id}
-              href={`/community/${community.id}`}
-              className="flex items-center gap-3 bg-white border-2 border-primary-dark rounded-xl p-3.5 shadow-[3px_3px_0px_0px_var(--color-primary-dark)] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[4px_4px_0px_0px_var(--color-primary-dark)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_0px_var(--color-primary-dark)] transition-all animate-fade-in-up"
-              style={{ animationDelay: `${idx * 60}ms` }}
-              id={`community-card-${community.id}`}
-            >
-              {/* Community Avatar */}
-              <div className={`w-12 h-12 rounded-xl ${AVATAR_COLORS[idx % AVATAR_COLORS.length]} flex items-center justify-center flex-shrink-0 border-2 border-primary-dark shadow-[2px_2px_0px_0px_var(--color-primary-dark)]`}>
-                <span className="font-black text-sm">{community.initials}</span>
-              </div>
+          {myCommunities.length === 0 ? (
+            <div className="text-center py-10 border border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+              <p className="text-xs font-bold text-slate-400">
+                Belum ada komunitas yang kamu ikuti.
+              </p>
+            </div>
+          ) : (
+            myCommunities.map((community, idx) => (
+              <Link
+                key={community.id}
+                href={`/community/${community.id}`}
+                className="flex items-center gap-3 bg-[#E2E5E9] rounded-xl p-3.5 transition-all hover:bg-slate-200 cursor-pointer"
+                id={`community-card-${community.id}`}
+              >
+                {/* Initials Avatar Square Badge matching mockup */}
+                <div
+                  className={`w-11 h-11 rounded-lg ${community.avatarColor} flex items-center justify-center shrink-0 font-extrabold text-sm shadow-sm`}
+                >
+                  {community.initials}
+                </div>
 
-              {/* Community Info */}
-              <div className="flex-1 min-w-0">
-                <h3 className="font-extrabold text-sm text-primary-dark truncate">{community.name}</h3>
-                <p className="text-[11px] font-semibold text-text-muted">{community.membersCount} anggota</p>
-              </div>
+                {/* Title & Member Count */}
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-extrabold text-xs text-[#0B1E36] leading-tight truncate">
+                    {community.name}
+                  </h3>
+                  <p className="text-[9px] font-bold text-slate-500 mt-0.5">
+                    {community.membersCount} anggota
+                  </p>
+                </div>
 
-              {/* Role Badge */}
-              {community.role && (
-                <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg border flex-shrink-0 ${
-                  community.role === "Admin"
-                    ? "bg-amber-100 text-amber-800 border-amber-300"
-                    : "bg-slate-100 text-slate-600 border-slate-300"
-                }`}>
-                  {community.role}
-                </span>
-              )}
-            </Link>
-          ))}
+                {/* Role pill badge matching mockup */}
+                {community.role && (
+                  <span className="text-[9px] font-extrabold px-3 py-1 bg-white text-[#0B1E36] rounded-full shadow-sm shrink-0 border border-transparent">
+                    {community.role}
+                  </span>
+                )}
+              </Link>
+            ))
+          )}
         </div>
 
-        {/* Explore More */}
-        <div className="mt-6 mb-8">
+        {/* Explore Pill Button */}
+        <div className="mt-6">
           <Link
             href="/community/join"
-            className="neo-button-white w-full py-3 text-xs font-black"
+            className="w-full py-3 bg-[#0B1E36] text-white font-extrabold text-xs rounded-full flex items-center justify-center gap-1.5 hover:bg-black transition-all shadow-md"
           >
             🔍 Jelajahi & Join Komunitas Lainnya
           </Link>

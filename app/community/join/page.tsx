@@ -15,52 +15,17 @@ interface CommunityListItem {
   avatarColor: string;
 }
 
-const MOCK_COMMUNITIES: CommunityListItem[] = [
-  {
-    id: "1",
-    name: "Teknik Informatika",
-    category: "AKADEMIK",
-    membersCount: 150,
-    initials: "TI",
-    isJoined: true,
-    avatarColor: "bg-emerald-700 text-white",
-  },
-  {
-    id: "2",
-    name: "Robotika",
-    category: "HOBI",
-    membersCount: 40,
-    initials: "R",
-    isJoined: false,
-    avatarColor: "bg-red-800 text-white",
-  },
-  {
-    id: "3",
-    name: "English Club",
-    category: "AKADEMIK",
-    membersCount: 70,
-    initials: "EC",
-    isJoined: false,
-    avatarColor: "bg-indigo-900 text-white",
-  },
-  {
-    id: "4",
-    name: "Swimming Club",
-    category: "HOBI",
-    membersCount: 30,
-    initials: "SC",
-    isJoined: false,
-    avatarColor: "bg-amber-600 text-white",
-  },
-];
-
 export default function JoinCommunityPage() {
   const router = useRouter();
   const { user, loading } = useUserSession();
   const [search, setSearch] = useState("");
-  const [communities, setCommunities] =
-    useState<CommunityListItem[]>(MOCK_COMMUNITIES);
+  const [communities, setCommunities] = useState<CommunityListItem[]>([]);
   const [successToast, setSuccessToast] = useState("");
+
+  const triggerToast = (msg: string) => {
+    setSuccessToast(msg);
+    setTimeout(() => setSuccessToast(""), 2500);
+  };
 
   // Route protection
   useEffect(() => {
@@ -69,35 +34,52 @@ export default function JoinCommunityPage() {
     }
   }, [user, loading, router]);
 
-  // Load custom created communities from localStorage
+  // Fetch real communities from API
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("unneshub_new_communities");
-      if (stored) {
-        try {
-          const customComms = JSON.parse(stored);
-          const mapped = customComms.map((c: any) => ({
-            id: c.id,
-            name: c.name,
-            category: c.category,
-            membersCount: c.membersCount || 1,
-            initials: c.initials,
-            isJoined: c.isJoined ?? true,
-            avatarColor: "bg-emerald-700 text-white",
-          }));
+    async function fetchCommunities() {
+      try {
+        const res = await fetch("/api/communities");
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            const mapped = await Promise.all(data.map(async (c: any) => {
+              let isJoined = false;
+              let membersCount = c._count?.members || 0;
+              try {
+                const mRes = await fetch(`/api/communities/${c.id}/members`);
+                if (mRes.ok) {
+                  const mData = await mRes.json();
+                  isJoined = mData.some((m: any) => m.user?.email === user?.email);
+                  membersCount = mData.length;
+                }
+              } catch (e) {
+                console.warn(`Failed to check membership for ${c.id}:`, e);
+              }
 
-          setCommunities((prev) => {
-            const filteredPrev = prev.filter(
-              (p) => !mapped.some((m: any) => m.id === p.id),
-            );
-            return [...mapped, ...filteredPrev];
-          });
-        } catch (e) {
-          console.error("Failed to parse custom communities:", e);
+              const initials = c.name.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2);
+              const avatarColor = c.category === "AKADEMIK" ? "bg-emerald-700 text-white" : c.category === "HOBI" ? "bg-red-800 text-white" : "bg-indigo-900 text-white";
+
+              return {
+                id: c.id,
+                name: c.name,
+                category: c.category,
+                membersCount,
+                initials,
+                isJoined,
+                avatarColor
+              };
+            }));
+            setCommunities(mapped);
+          }
         }
+      } catch (error) {
+        console.error("Failed to fetch communities from API:", error);
       }
     }
-  }, []);
+    if (user?.isLoggedIn) {
+      fetchCommunities();
+    }
+  }, [user]);
 
   if (loading || !user) {
     return (
@@ -132,19 +114,34 @@ export default function JoinCommunityPage() {
     c.name.toLowerCase().includes(search.toLowerCase()),
   );
 
-  const handleJoin = (communityId: string) => {
-    setCommunities((prev) =>
-      prev.map((c) =>
-        c.id === communityId ? { ...c, isJoined: !c.isJoined } : c,
-      ),
-    );
-    const community = communities.find((c) => c.id === communityId);
-    if (community) {
-      const msg = community.isJoined
-        ? `Keluar dari ${community.name}`
-        : `Bergabung ke ${community.name}`;
-      setSuccessToast(msg);
-      setTimeout(() => setSuccessToast(""), 2500);
+  const handleJoin = async (communityId: string) => {
+    try {
+      const community = communities.find(c => c.id === communityId);
+      if (!community) return;
+
+      const isCurrentlyJoined = community.isJoined;
+      const endpoint = `/api/communities/${communityId}/join`;
+      
+      const res = await fetch(endpoint, {
+        method: "POST"
+      });
+
+      if (res.ok) {
+        triggerToast(isCurrentlyJoined ? `Keluar dari ${community.name}` : `Bergabung ke ${community.name}`);
+        setCommunities((prev) =>
+          prev.map((c) =>
+            c.id === communityId 
+              ? { ...c, isJoined: !c.isJoined, membersCount: c.isJoined ? c.membersCount - 1 : c.membersCount + 1 } 
+              : c,
+          ),
+        );
+      } else {
+        const err = await res.json();
+        triggerToast(err.error || "Gagal mengubah keanggotaan");
+      }
+    } catch (error) {
+      console.error("Failed to join community:", error);
+      triggerToast("Terjadi kesalahan koneksi server.");
     }
   };
 

@@ -2,7 +2,7 @@ import { prisma } from "../prisma";
 import { auth } from "../auth/auth";
 import { headers } from "next/headers";
 import { CreateCommunityInput } from "../validations/community";
-import { CommunityCategory, Prisma } from "../../app/generated/prisma/client";
+import { CommunityCategory, CommunityStatus, Prisma } from "../../app/generated/prisma/client";
 
 async function getAuthenticatedUser() {
   const session = await auth.api.getSession({
@@ -43,6 +43,7 @@ export async function createCommunity(data: CreateCommunityInput) {
         rules: data.rules,
         category: data.category as CommunityCategory,
         creatorId: user.id,
+        status: "APPROVED" as CommunityStatus,
       },
     });
 
@@ -182,7 +183,7 @@ export async function joinCommunity(communityId: string) {
       communityId,
       userId: user.id,
       role: "MEMBER",
-      status: "PENDING",
+      status: "APPROVED",
     },
   });
 }
