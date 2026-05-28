@@ -15,6 +15,21 @@ interface CommunityListItem {
   avatarColor: string;
 }
 
+interface DBCommunity {
+  id: string;
+  name: string;
+  category: string;
+  _count?: {
+    members?: number;
+  };
+}
+
+interface DBMember {
+  user?: {
+    email: string;
+  } | null;
+}
+
 export default function JoinCommunityPage() {
   const router = useRouter();
   const { user, loading } = useUserSession();
@@ -40,16 +55,17 @@ export default function JoinCommunityPage() {
       try {
         const res = await fetch("/api/communities");
         if (res.ok) {
-          const data = await res.json();
+          const result = await res.json();
+          const data = result.data || result;
           if (Array.isArray(data) && data.length > 0) {
-            const mapped = await Promise.all(data.map(async (c: any) => {
+            const mapped = await Promise.all(data.map(async (c: DBCommunity) => {
               let isJoined = false;
               let membersCount = c._count?.members || 0;
               try {
                 const mRes = await fetch(`/api/communities/${c.id}/members`);
                 if (mRes.ok) {
                   const mData = await mRes.json();
-                  isJoined = mData.some((m: any) => m.user?.email === user?.email);
+                  isJoined = mData.some((m: DBMember) => m.user?.email === user?.email);
                   membersCount = mData.length;
                 }
               } catch (e) {
@@ -206,7 +222,7 @@ export default function JoinCommunityPage() {
               </p>
             </div>
           ) : (
-            filteredCommunities.map((community, idx) => (
+            filteredCommunities.map((community) => (
               <Link
                 key={community.id}
                 href={`/community/${community.id}`}

@@ -16,6 +16,20 @@ interface CommunityItem {
   avatarColor: string;
 }
 
+interface DBCommunity {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+}
+
+interface DBMember {
+  user?: {
+    email: string;
+  } | null;
+  role: string;
+}
+
 export default function Home() {
   const { user, loading } = useUserSession();
   const [mounted, setMounted] = useState(false);
@@ -26,7 +40,10 @@ export default function Home() {
   const [myCommunities, setMyCommunities] = useState<CommunityItem[]>([]);
 
   useEffect(() => {
-    setMounted(true);
+    const timer = setTimeout(() => {
+      setMounted(true);
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   // Fetch session from Better Auth
@@ -58,16 +75,17 @@ export default function Home() {
       try {
         const res = await fetch("/api/communities");
         if (res.ok) {
-          const data = await res.json();
+          const result = await res.json();
+          const data = result.data || result;
           if (Array.isArray(data)) {
             const mapped = await Promise.all(
-              data.map(async (c: any) => {
+              data.map(async (c: DBCommunity) => {
                 try {
                   const mRes = await fetch(`/api/communities/${c.id}/members`);
                   if (mRes.ok) {
                     const mData = await mRes.json();
                     const userMembership = mData.find(
-                      (m: any) => m.user?.email === activeEmail,
+                      (m: DBMember) => m.user?.email === activeEmail,
                     );
 
                     if (userMembership) {
@@ -256,7 +274,7 @@ export default function Home() {
               </p>
             </div>
           ) : (
-            myCommunities.map((community, idx) => (
+            myCommunities.map((community) => (
               <Link
                 key={community.id}
                 href={`/community/${community.id}`}

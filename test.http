@@ -240,4 +240,66 @@ Origin: http://localhost:3000
 GET http://localhost:3000/api/communities?search=fotografi&category=HOBI&limit=5&page=1
 Origin: http://localhost:3000
 
+###
+
+# @name updateCommunity
+# Update community name, description, and rules
+PATCH http://localhost:3000/api/communities/cc7ad9a8-2788-44e6-a316-9149a949237c
+Content-Type: application/json
+Origin: http://localhost:3000
+
+{
+  "name": "Fotografi UNNES Baru",
+  "description": "Komunitas pecinta seni fotografi mahasiswa Universitas Negeri Semarang",
+  "rules": "1. Saling menghormati. 2. Posting karya orisinal."
+}
+
+###
+
+# @name updateMemberRoleToAdmin
+# Promote a member to ADMIN (only the community owner can perform this)
+PATCH http://localhost:3000/api/communities/cc7ad9a8-2788-44e6-a316-9149a949237c/role
+Content-Type: application/json
+Origin: http://localhost:3000
+
+{
+  "memberId": "k8YfJtUnVfUraA1nazYp0T8ZoBljKuss",
+  "role": "ADMIN"
+}
+
+###
+
+# @name updateMemberRoleToMember
+# Demote an admin to MEMBER (only the community owner can perform this)
+PATCH http://localhost:3000/api/communities/cc7ad9a8-2788-44e6-a316-9149a949237c/role
+Content-Type: application/json
+Origin: http://localhost:3000
+
+{
+  "memberId": "k8YfJtUnVfUraA1nazYp0T8ZoBljKuss",
+  "role": "MEMBER"
+}
+
+###
+
+# @name kickMember
+# Kick a community member (admins can kick normal members, owner can kick any admin/member)
+DELETE http://localhost:3000/api/communities/cc7ad9a8-2788-44e6-a316-9149a949237c/members/k8YfJtUnVfUraA1nazYp0T8ZoBljKuss
+Origin: http://localhost:3000
+
+###
+
+# @name leaveCommunity
+# Logged-in member leaves the community (owner cannot leave)
+POST http://localhost:3000/api/communities/cc7ad9a8-2788-44e6-a316-9149a949237c/leave
+Origin: http://localhost:3000
+
+###
+
+# @name deleteCommunity
+# Delete community (only community owner can perform this)
+DELETE http://localhost:3000/api/communities/cc7ad9a8-2788-44e6-a316-9149a949237c
+Origin: http://localhost:3000
+
+
 

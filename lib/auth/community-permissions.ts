@@ -34,11 +34,22 @@ export async function requireCommunityMember(communityId: string) {
 export async function requireCommunityAdmin(communityId: string) {
   const { user, membership } = await requireCommunityMember(communityId);
 
-  if (membership.role !== "ADMIN") {
+  const community = await prisma.community.findUnique({
+    where: { id: communityId },
+    select: { creatorId: true },
+  });
+
+  if (!community) {
+    throw new Error("NotFound: Community not found");
+  }
+
+  const isOwner = community.creatorId === user.id;
+
+  if (membership.role !== "ADMIN" && !isOwner) {
     throw new Error("Forbidden: Admin privileges required for this community");
   }
 
-  return { user, membership };
+  return { user, membership, isOwner };
 }
 
 export async function requireCommunityOwner(communityId: string) {
