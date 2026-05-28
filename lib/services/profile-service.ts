@@ -3,7 +3,7 @@ import { auth } from "../auth/auth";
 import { headers } from "next/headers";
 import { requireAuth } from "../auth/community-permissions";
 import { UpdateProfileInput } from "../validations/profile";
-import { Prisma, UserRole } from "../../app/generated/prisma/client";
+import { UserRole } from "../../app/generated/prisma/client";
 
 interface CurrentUserSession {
   id: string;

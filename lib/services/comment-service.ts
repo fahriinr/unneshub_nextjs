@@ -1,7 +1,9 @@
 import { prisma } from "../prisma";
 import { requireAuth } from "../auth/community-permissions";
 import { CreateCommentInput, UpdateCommentInput } from "../validations/comment";
-import { Prisma } from "../../app/generated/prisma/client";
+import { Prisma, UserRole } from "../../app/generated/prisma/client";
+import { auth } from "../auth/auth";
+import { headers } from "next/headers";
 
 export type CommentWithRelations = Prisma.CommentGetPayload<{
   include: {
@@ -30,7 +32,167 @@ export type CommentWithRelations = Prisma.CommentGetPayload<{
   };
 }>;
 
-export async function createComment(data: CreateCommentInput): Promise<CommentWithRelations> {
+export interface CommentPermissions {
+  canEdit: boolean;
+  canDelete: boolean;
+}
+
+export type CommentWithPermissions<T> = T & {
+  permissions: CommentPermissions;
+  replies?: CommentWithPermissions<CommentWithRelations["replies"][number]>[];
+};
+
+interface CurrentUserSession {
+  id: string;
+  role: UserRole;
+}
+
+async function getCurrentUserOrNull(): Promise<CurrentUserSession | null> {
+  try {
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+    if (!session || !session.user) return null;
+    return {
+      id: session.user.id,
+      role: session.user.role as UserRole,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function enrichCommentData<T extends { userId: string; postId: string }>(
+  comment: T,
+  currentUser: CurrentUserSession | null
+): Promise<CommentWithPermissions<T>> {
+  if (!currentUser) {
+    return {
+      ...comment,
+      permissions: {
+        canEdit: false,
+        canDelete: false,
+      },
+    };
+  }
+
+  const isAuthor = comment.userId === currentUser.id;
+  const isGlobalAdmin = currentUser.role === "GLOBAL_ADMIN";
+
+  // Fetch the post's community
+  const post = await prisma.post.findUnique({
+    where: { id: comment.postId },
+    select: { communityId: true },
+  });
+
+  let isCommunityAdmin = false;
+  if (post) {
+    const community = await prisma.community.findUnique({
+      where: { id: post.communityId },
+      select: { creatorId: true },
+    });
+    const isOwner = community ? community.creatorId === currentUser.id : false;
+
+    let isAdmin = isOwner;
+    if (community && !isOwner) {
+      const membership = await prisma.communityMember.findUnique({
+        where: {
+          communityId_userId: {
+            communityId: post.communityId,
+            userId: currentUser.id,
+          },
+        },
+        select: { role: true, status: true },
+      });
+      if (membership && membership.status === "APPROVED" && membership.role === "ADMIN") {
+        isAdmin = true;
+      }
+    }
+    isCommunityAdmin = isAdmin;
+  }
+
+  return {
+    ...comment,
+    permissions: {
+      canEdit: isAuthor,
+      canDelete: isAuthor || isCommunityAdmin || isGlobalAdmin,
+    },
+  };
+}
+
+async function enrichCommentsList(
+  comments: CommentWithRelations[],
+  postId: string,
+  currentUser: CurrentUserSession | null
+): Promise<CommentWithPermissions<CommentWithRelations>[]> {
+  if (comments.length === 0) return [];
+  if (!currentUser) {
+    return comments.map(c => ({
+      ...c,
+      permissions: { canEdit: false, canDelete: false },
+      replies: c.replies.map(r => ({
+        ...r,
+        permissions: { canEdit: false, canDelete: false }
+      }))
+    }));
+  }
+
+  const currentUserId = currentUser.id;
+  const isGlobalAdmin = currentUser.role === "GLOBAL_ADMIN";
+
+  // Fetch community details
+  const post = await prisma.post.findUnique({
+    where: { id: postId },
+    select: { communityId: true },
+  });
+
+  let isCommunityAdmin = false;
+  if (post) {
+    const community = await prisma.community.findUnique({
+      where: { id: post.communityId },
+      select: { creatorId: true },
+    });
+    const isOwner = community ? community.creatorId === currentUserId : false;
+
+    let isAdmin = isOwner;
+    if (community && !isOwner) {
+      const membership = await prisma.communityMember.findUnique({
+        where: {
+          communityId_userId: {
+            communityId: post.communityId,
+            userId: currentUserId,
+          },
+        },
+        select: { role: true, status: true },
+      });
+      if (membership && membership.status === "APPROVED" && membership.role === "ADMIN") {
+        isAdmin = true;
+      }
+    }
+    isCommunityAdmin = isAdmin;
+  }
+
+  const canDeleteAny = isCommunityAdmin || isGlobalAdmin;
+
+  return comments.map(c => {
+    const canEdit = c.userId === currentUserId;
+    const canDelete = canEdit || canDeleteAny;
+
+    return {
+      ...c,
+      permissions: { canEdit, canDelete },
+      replies: c.replies.map(r => ({
+        ...r,
+        permissions: {
+          canEdit: r.userId === currentUserId,
+          canDelete: r.userId === currentUserId || canDeleteAny,
+        }
+      }))
+    };
+  });
+}
+
+export async function createComment(data: CreateCommentInput): Promise<CommentWithPermissions<CommentWithRelations>> {
   const user = await requireAuth();
 
   // Validate parent comment and nesting depth if parentId is provided
@@ -59,7 +221,7 @@ export async function createComment(data: CreateCommentInput): Promise<CommentWi
     throw new Error("NotFound: Post not found");
   }
 
-  return await prisma.comment.create({
+  const comment = await prisma.comment.create({
     data: {
       content: data.content,
       postId: data.postId,
@@ -91,6 +253,9 @@ export async function createComment(data: CreateCommentInput): Promise<CommentWi
       },
     },
   });
+
+  const currentUser = await getCurrentUserOrNull();
+  return await enrichCommentData(comment, currentUser);
 }
 
 export interface GetCommentsOptions {
@@ -101,7 +266,7 @@ export interface GetCommentsOptions {
 export async function getCommentsByPost(
   postId: string,
   options: GetCommentsOptions = {}
-): Promise<CommentWithRelations[]> {
+): Promise<CommentWithPermissions<CommentWithRelations>[]> {
   const { limit = 10, page = 1 } = options;
   const skip = (page - 1) * limit;
 
@@ -114,7 +279,7 @@ export async function getCommentsByPost(
     throw new Error("NotFound: Post not found");
   }
 
-  return await prisma.comment.findMany({
+  const comments = await prisma.comment.findMany({
     where: {
       postId,
       parentId: null, // Only fetch top-level comments
@@ -152,12 +317,15 @@ export async function getCommentsByPost(
       createdAt: "asc",
     },
   });
+
+  const currentUser = await getCurrentUserOrNull();
+  return await enrichCommentsList(comments, postId, currentUser);
 }
 
 export async function updateComment(
   id: string,
   data: UpdateCommentInput
-): Promise<CommentWithRelations> {
+): Promise<CommentWithPermissions<CommentWithRelations>> {
   const user = await requireAuth();
 
   const comment = await prisma.comment.findUnique({
@@ -172,7 +340,7 @@ export async function updateComment(
     throw new Error("Forbidden: You are not the owner of this comment");
   }
 
-  return await prisma.comment.update({
+  const updatedComment = await prisma.comment.update({
     where: { id },
     data: {
       content: data.content,
@@ -205,6 +373,9 @@ export async function updateComment(
       },
     },
   });
+
+  const currentUser = await getCurrentUserOrNull();
+  return await enrichCommentData(updatedComment, currentUser);
 }
 
 export async function deleteComment(id: string): Promise<Prisma.BatchPayload | { id: string }> {
@@ -222,7 +393,6 @@ export async function deleteComment(id: string): Promise<Prisma.BatchPayload | {
     throw new Error("Forbidden: You are not the owner of this comment");
   }
 
-  // Delete comment
   await prisma.comment.delete({
     where: { id },
   });

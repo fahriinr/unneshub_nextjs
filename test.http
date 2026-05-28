@@ -215,6 +215,29 @@ Origin: http://localhost:3000
 # @name getPostWithRolePermissions
 # Inspect response JSON for computed post metadata fields:
 # - permissions: { canEdit, canDelete, canManageMembers, isCommunityAdmin, isCommunityOwner }
+# - likedByCurrentUser
 GET http://localhost:3000/api/posts/c133a34a-8438-4a05-993e-e75e065f2452
 Origin: http://localhost:3000
+
+###
+
+# @name getGlobalFeed
+# Fetch global posts feed, newest first
+GET http://localhost:3000/api/feed?limit=10&page=1
+Origin: http://localhost:3000
+
+###
+
+# @name getPersonalizedFeed
+# Fetch personalized feed prioritizing user's joined communities and posts
+GET http://localhost:3000/api/feed?personalized=true&limit=10&page=1
+Origin: http://localhost:3000
+
+###
+
+# @name searchCommunitiesWithCategory
+# Search communities case-insensitively with pagination and category filter
+GET http://localhost:3000/api/communities?search=fotografi&category=HOBI&limit=5&page=1
+Origin: http://localhost:3000
+
 

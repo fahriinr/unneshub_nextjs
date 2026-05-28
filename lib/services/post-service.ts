@@ -41,6 +41,7 @@ export interface PostPermissions {
 
 export type PostWithPermissions<T> = T & {
   permissions: PostPermissions;
+  likedByCurrentUser: boolean;
 };
 
 async function getCurrentUserOrNull(): Promise<CurrentUserSession | null> {
@@ -80,13 +81,14 @@ function maskAnonymousAuthor<T extends PostWithRelations>(
   return post;
 }
 
-async function enrichPost<T extends { userId: string; communityId: string }>(
+async function enrichPost<T extends { id: string; userId: string; communityId: string }>(
   post: T,
   currentUser: CurrentUserSession | null
 ): Promise<PostWithPermissions<T>> {
   if (!currentUser) {
     return {
       ...post,
+      likedByCurrentUser: false,
       permissions: {
         canEdit: false,
         canDelete: false,
@@ -123,8 +125,19 @@ async function enrichPost<T extends { userId: string; communityId: string }>(
     }
   }
 
+  // Check if liked by current user
+  const like = await prisma.like.findUnique({
+    where: {
+      postId_userId: {
+        postId: post.id,
+        userId: currentUser.id,
+      },
+    },
+  });
+
   return {
     ...post,
+    likedByCurrentUser: !!like,
     permissions: {
       canEdit: isAuthor,
       canDelete: isAuthor || isAdmin || isGlobalAdmin,
@@ -135,7 +148,7 @@ async function enrichPost<T extends { userId: string; communityId: string }>(
   };
 }
 
-async function enrichPosts<T extends { userId: string; communityId: string }>(
+async function enrichPosts<T extends { id: string; userId: string; communityId: string }>(
   posts: T[],
   currentUser: CurrentUserSession | null
 ): Promise<PostWithPermissions<T>[]> {
@@ -143,6 +156,7 @@ async function enrichPosts<T extends { userId: string; communityId: string }>(
   if (!currentUser) {
     return posts.map(p => ({
       ...p,
+      likedByCurrentUser: false,
       permissions: {
         canEdit: false,
         canDelete: false,
@@ -172,6 +186,17 @@ async function enrichPosts<T extends { userId: string; communityId: string }>(
   });
   const membershipMap = new Map(memberships.map(m => [m.communityId, m.role]));
 
+  // Check likes in batch
+  const postIds = posts.map(p => p.id);
+  const likes = await prisma.like.findMany({
+    where: {
+      postId: { in: postIds },
+      userId: currentUser.id,
+    },
+    select: { postId: true },
+  });
+  const likedPostIds = new Set(likes.map(l => l.postId));
+
   return posts.map(post => {
     const isAuthor = post.userId === currentUser.id;
     const creatorId = communityCreatorMap.get(post.communityId);
@@ -181,6 +206,7 @@ async function enrichPosts<T extends { userId: string; communityId: string }>(
 
     return {
       ...post,
+      likedByCurrentUser: likedPostIds.has(post.id),
       permissions: {
         canEdit: isAuthor,
         canDelete: isAuthor || isAdmin || isGlobalAdmin,

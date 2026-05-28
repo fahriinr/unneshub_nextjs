@@ -245,6 +245,16 @@ export async function getCommunityBySlug(slug: string) {
   return await enrichCommunity(community, currentUser);
 }
 
+export interface PaginatedResult<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 export interface GetCommunitiesOptions {
   category?: CommunityCategory;
   search?: string;
@@ -252,7 +262,17 @@ export interface GetCommunitiesOptions {
   page?: number;
 }
 
-export async function getCommunities(options: GetCommunitiesOptions = {}) {
+export type CommunityWithCount = Prisma.CommunityGetPayload<{
+  include: {
+    _count: {
+      select: {
+        members: true;
+      };
+    };
+  };
+}>;
+
+export async function getCommunities(options: GetCommunitiesOptions = {}): Promise<PaginatedResult<CommunityWithPermissions<CommunityWithCount>>> {
   const { category, search, limit = 10, page = 1 } = options;
   const skip = (page - 1) * limit;
 
@@ -306,6 +326,9 @@ export async function getCommunities(options: GetCommunitiesOptions = {}) {
     }
   }
 
+  // Get total count
+  const total = await prisma.community.count({ where });
+
   const communities = await prisma.community.findMany({
     where,
     take: limit,
@@ -322,7 +345,18 @@ export async function getCommunities(options: GetCommunitiesOptions = {}) {
     },
   });
 
-  return await enrichCommunities(communities, currentUser);
+  const enriched = await enrichCommunities(communities, currentUser);
+  const totalPages = Math.ceil(total / limit);
+
+  return {
+    data: enriched,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages,
+    },
+  };
 }
 
 export async function joinCommunity(communityId: string) {
