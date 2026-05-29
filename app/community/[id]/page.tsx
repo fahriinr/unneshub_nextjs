@@ -105,21 +105,10 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
 
     async function loadRealData() {
       try {
-        // Fetch Community Details
+        // Fetch Community Details (which has isJoined and permissions calculated on server)
         const commRes = await fetch(`/api/communities/${id}`);
         if (!commRes.ok) throw new Error("Gagal mengambil data komunitas");
         const commData = await commRes.json();
-
-        // Fetch Members List
-        let membersData = [];
-        try {
-          const membersRes = await fetch(`/api/communities/${id}/members`);
-          if (membersRes.ok) {
-            membersData = await membersRes.json();
-          }
-        } catch (e) {
-          console.warn("Failed to fetch members:", e);
-        }
 
         // Fetch Posts
         let postsData = [];
@@ -134,13 +123,12 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
 
         if (!active) return;
 
-        // Check if current user is a member
-        const userMembership = membersData.find(
-          (m: any) => m.user?.email === user?.email
-        );
-        const isJoined = !!userMembership;
-        if (userMembership) {
-          setMemberRole(userMembership.role);
+        // Set role based on backend permissions
+        const isJoined = commData.isJoined;
+        if (commData.permissions?.isCommunityAdmin) {
+          setMemberRole("ADMIN");
+        } else {
+          setMemberRole("MEMBER");
         }
 
         // Map Category Avatar Color
@@ -158,7 +146,7 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
           slug: commData.slug,
           description: commData.description,
           category: commData.category,
-          membersCount: commData._count?.members || membersData.length || 0,
+          membersCount: commData._count?.members || 0,
           initials: commData.name
             .split(" ")
             .map((w: string) => w[0])
@@ -220,6 +208,30 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
       active = false;
     };
   }, [id, user]);
+
+  // Lazy load members list when the "Anggota" tab is active
+  const [membersList, setMembersList] = useState<any[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === "Anggota" && membersList.length === 0 && user?.isLoggedIn) {
+      async function fetchMembers() {
+        setLoadingMembers(true);
+        try {
+          const res = await fetch(`/api/communities/${id}/members`);
+          if (res.ok) {
+            const data = await res.json();
+            setMembersList(data);
+          }
+        } catch (e) {
+          console.warn("Failed to lazy load members:", e);
+        } finally {
+          setLoadingMembers(false);
+        }
+      }
+      fetchMembers();
+    }
+  }, [activeTab, id, membersList.length, user]);
 
   const triggerToast = (msg: string) => {
     setSuccessToast(msg);
@@ -995,16 +1007,39 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
         {activeTab === "Anggota" && (
           <div className="bg-white border border-slate-100 rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
             <h2 className="text-xs font-black text-[#0B1E36] uppercase tracking-wider">Daftar Anggota</h2>
-            <div className="flex flex-col gap-3">
-              {[user.name, "Ahmad Mahasiswa", "North Otto", "Duang Suppakarn"].map((name, i) => (
-                <div key={i} className="flex items-center gap-2.5 pb-2 border-b border-slate-50 text-xs font-bold text-[#0B1E36]">
-                  <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center font-bold text-[10px] border border-slate-200 text-slate-500">
-                    {name.charAt(0)}
+            {loadingMembers ? (
+              <div className="flex flex-col gap-3 animate-pulse">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center gap-2.5 pb-2 border-b border-slate-50">
+                    <div className="w-7 h-7 rounded-full bg-slate-200 shrink-0"></div>
+                    <div className="h-3 w-32 bg-slate-200 rounded"></div>
                   </div>
-                  <span>{name}</span>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : membersList.length === 0 ? (
+              <p className="text-xs font-bold text-slate-400">Tidak ada anggota yang ditemukan.</p>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {membersList.map((m: any, i: number) => {
+                  const name = m.user?.name || "Mahasiswa";
+                  return (
+                    <div key={m.id || i} className="flex items-center gap-2.5 pb-2 border-b border-slate-50 text-xs font-bold text-[#0B1E36]">
+                      <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center font-bold text-[10px] border border-slate-200 text-slate-500 shrink-0">
+                        {name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex flex-col">
+                        <span>{name}</span>
+                        {m.role === "ADMIN" && (
+                          <span className="text-[8px] font-extrabold text-[#F2C010] bg-[#0B1E36] px-1.5 py-0.5 rounded w-max mt-0.5 uppercase tracking-wide">
+                            Admin
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 

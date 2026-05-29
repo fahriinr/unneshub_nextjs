@@ -114,3 +114,40 @@ export function ProfileSkeleton() {
     </div>
   );
 }
+
+export function JoinSkeleton() {
+  return (
+    <div className="flex-1 w-full mx-auto bg-white flex flex-col min-h-screen animate-pulse">
+      {/* Title block */}
+      <div className="px-4 pt-6 pb-4 w-full">
+        <div className="h-6 w-36 bg-slate-200 rounded-md mb-4"></div>
+        {/* Search bar block */}
+        <div className="w-full h-10 bg-slate-100 rounded-xl border border-slate-200/50"></div>
+      </div>
+
+      {/* Community lists */}
+      <div className="flex-1 px-4 w-full pb-24">
+        <div className="flex flex-col gap-3">
+          {[1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className="flex items-center gap-3 bg-slate-100 rounded-xl p-3.5 border border-slate-200/50"
+            >
+              {/* Abbreviation square avatar */}
+              <div className="w-11 h-11 rounded-lg bg-slate-200 shrink-0"></div>
+
+              {/* Name & Member subtexts */}
+              <div className="flex-1 min-w-0 flex flex-col gap-2">
+                <div className="h-3 w-32 bg-slate-200 rounded-md"></div>
+                <div className="h-2 w-16 bg-slate-200 rounded-md"></div>
+              </div>
+
+              {/* Join Button */}
+              <div className="h-7 w-16 bg-slate-200 rounded-full shrink-0"></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useUserSession } from "../../hooks/useUserSession";
+import { JoinSkeleton } from "../../components/Skeleton";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface CommunityListItem {
   id: string;
@@ -15,26 +17,11 @@ interface CommunityListItem {
   avatarColor: string;
 }
 
-interface DBCommunity {
-  id: string;
-  name: string;
-  category: string;
-  _count?: {
-    members?: number;
-  };
-}
-
-interface DBMember {
-  user?: {
-    email: string;
-  } | null;
-}
-
 export default function JoinCommunityPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user, loading } = useUserSession();
   const [search, setSearch] = useState("");
-  const [communities, setCommunities] = useState<CommunityListItem[]>([]);
   const [successToast, setSuccessToast] = useState("");
 
   const triggerToast = (msg: string) => {
@@ -49,95 +36,49 @@ export default function JoinCommunityPage() {
     }
   }, [user, loading, router]);
 
-  // Fetch real communities from API
-  useEffect(() => {
-    async function fetchCommunities() {
-      try {
-        const res = await fetch("/api/communities");
-        if (res.ok) {
-          const result = await res.json();
-          const data = result.data || result;
-          if (Array.isArray(data) && data.length > 0) {
-            const mapped = await Promise.all(
-              data.map(async (c: DBCommunity) => {
-                let isJoined = false;
-                let membersCount = c._count?.members || 0;
-                try {
-                  const mRes = await fetch(`/api/communities/${c.id}/members`);
-                  if (mRes.ok) {
-                    const mData = await mRes.json();
-                    isJoined = mData.some(
-                      (m: DBMember) => m.user?.email === user?.email,
-                    );
-                    membersCount = mData.length;
-                  }
-                } catch (e) {
-                  console.warn(`Failed to check membership for ${c.id}:`, e);
-                }
+  // Optimized communities fetching with caching to eliminate lag
+  const { data: communities = [], isLoading: isFetchingCommunities } = useQuery({
+    queryKey: ["communities", user?.email],
+    queryFn: async () => {
+      const res = await fetch("/api/communities");
+      if (!res.ok) throw new Error("Gagal mengambil data komunitas");
+      const result = await res.json();
+      const data = result.data || result;
+      if (!Array.isArray(data)) return [];
 
-                const initials = c.name
-                  .split(" ")
-                  .map((w: string) => w[0])
-                  .join("")
-                  .toUpperCase()
-                  .slice(0, 2);
-                const avatarColor =
-                  c.category === "AKADEMIK"
-                    ? "bg-emerald-700 text-white"
-                    : c.category === "HOBI"
-                      ? "bg-red-800 text-white"
-                      : "bg-indigo-900 text-white";
+      return data.map((c: any) => {
+        const initials = c.name
+          .split(" ")
+          .map((w: string) => w[0])
+          .join("")
+          .toUpperCase()
+          .slice(0, 2);
 
-                return {
-                  id: c.id,
-                  name: c.name,
-                  category: c.category,
-                  membersCount,
-                  initials,
-                  isJoined,
-                  avatarColor,
-                };
-              }),
-            );
-            setCommunities(mapped);
-          }
-        }
-      } catch (error) {
-        console.error("Failed to fetch communities from API:", error);
-      }
-    }
-    if (user?.isLoggedIn) {
-      fetchCommunities();
-    }
-  }, [user]);
+        const avatarColorMap: Record<string, string> = {
+          AKADEMIK: "bg-emerald-800 text-white",
+          HOBI: "bg-red-800 text-white",
+          KARIR: "bg-indigo-900 text-white",
+          ORGANISASI: "bg-amber-600 text-white",
+          EVENT: "bg-blue-800 text-white",
+        };
 
-  if (loading || !user) {
-    return (
-      <div className="flex-1 flex items-center justify-center p-8 bg-[#FDFBF7]">
-        <div className="text-center font-bold text-[#0B1E36]">
-          <svg
-            className="animate-spin h-8 w-8 mx-auto mb-4 text-[#0B1E36]"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="4"
-            />
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-            />
-          </svg>
-          Memuat komunitas...
-        </div>
-      </div>
-    );
+        return {
+          id: c.id,
+          name: c.name,
+          category: c.category,
+          membersCount: c._count?.members || 0,
+          initials,
+          isJoined: c.isJoined || false,
+          avatarColor: avatarColorMap[c.category] || "bg-emerald-800 text-white",
+        } as CommunityListItem;
+      });
+    },
+    enabled: !!user?.isLoggedIn,
+    staleTime: 1000 * 60 * 5, // Cache lists for 5 minutes
+  });
+
+  if (loading || !user || (isFetchingCommunities && communities.length === 0)) {
+    return <JoinSkeleton />;
   }
 
   const filteredCommunities = communities.filter((c) =>
@@ -162,19 +103,10 @@ export default function JoinCommunityPage() {
             ? `Keluar dari ${community.name}`
             : `Bergabung ke ${community.name}`,
         );
-        setCommunities((prev) =>
-          prev.map((c) =>
-            c.id === communityId
-              ? {
-                  ...c,
-                  isJoined: !c.isJoined,
-                  membersCount: c.isJoined
-                    ? c.membersCount - 1
-                    : c.membersCount + 1,
-                }
-              : c,
-          ),
-        );
+        
+        // Invalidate queries to instantly update caches and keep lists perfectly in sync
+        queryClient.invalidateQueries({ queryKey: ["communities", user?.email] });
+        queryClient.invalidateQueries({ queryKey: ["myCommunities", user?.email] });
       } else {
         const err = await res.json();
         triggerToast(err.error || "Gagal mengubah keanggotaan");

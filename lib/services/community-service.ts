@@ -49,10 +49,11 @@ export type CommunityWithPermissions<T> = T & {
 async function enrichCommunity<T extends { id: string; creatorId: string }>(
   community: T,
   currentUser: CurrentUserSession | null
-): Promise<CommunityWithPermissions<T>> {
+): Promise<CommunityWithPermissions<T> & { isJoined: boolean }> {
   if (!currentUser) {
     return {
       ...community,
+      isJoined: false,
       permissions: {
         canEdit: false,
         canDelete: false,
@@ -67,6 +68,7 @@ async function enrichCommunity<T extends { id: string; creatorId: string }>(
   const isOwner = community.creatorId === currentUser.id;
 
   let isAdmin = isOwner;
+  let isJoined = isOwner;
   if (!isOwner) {
     const membership = await prisma.communityMember.findUnique({
       where: {
@@ -77,13 +79,17 @@ async function enrichCommunity<T extends { id: string; creatorId: string }>(
       },
       select: { role: true, status: true },
     });
-    if (membership && membership.status === "APPROVED" && membership.role === "ADMIN") {
-      isAdmin = true;
+    if (membership && membership.status === "APPROVED") {
+      isJoined = true;
+      if (membership.role === "ADMIN") {
+        isAdmin = true;
+      }
     }
   }
 
   return {
     ...community,
+    isJoined,
     permissions: {
       canEdit: isOwner || isAdmin || isGlobalAdmin,
       canDelete: isOwner || isGlobalAdmin,
@@ -97,11 +103,12 @@ async function enrichCommunity<T extends { id: string; creatorId: string }>(
 async function enrichCommunities<T extends { id: string; creatorId: string }>(
   communities: T[],
   currentUser: CurrentUserSession | null
-): Promise<CommunityWithPermissions<T>[]> {
+): Promise<(CommunityWithPermissions<T> & { isJoined: boolean })[]> {
   if (communities.length === 0) return [];
   if (!currentUser) {
     return communities.map(c => ({
       ...c,
+      isJoined: false,
       permissions: {
         canEdit: false,
         canDelete: false,
@@ -130,9 +137,11 @@ async function enrichCommunities<T extends { id: string; creatorId: string }>(
     const isOwner = community.creatorId === currentUser.id;
     const memberRole = membershipMap.get(community.id);
     const isAdmin = isOwner || memberRole === "ADMIN";
+    const isJoined = isOwner || memberRole !== undefined;
 
     return {
       ...community,
+      isJoined,
       permissions: {
         canEdit: isOwner || isAdmin || isGlobalAdmin,
         canDelete: isOwner || isGlobalAdmin,
@@ -272,7 +281,13 @@ export type CommunityWithCount = Prisma.CommunityGetPayload<{
   };
 }>;
 
-export async function getCommunities(options: GetCommunitiesOptions = {}): Promise<PaginatedResult<CommunityWithPermissions<CommunityWithCount>>> {
+export async function getCommunities(
+  options: GetCommunitiesOptions = {},
+): Promise<
+  PaginatedResult<
+    CommunityWithPermissions<CommunityWithCount> & { isJoined: boolean }
+  >
+> {
   const { category, search, limit = 10, page = 1 } = options;
   const skip = (page - 1) * limit;
 
