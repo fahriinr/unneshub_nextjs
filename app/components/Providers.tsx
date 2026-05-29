@@ -8,9 +8,10 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     defaultOptions: {
       queries: {
         refetchOnWindowFocus: false,
+        refetchOnMount: false,
         staleTime: 1000 * 60 * 5, // Cache data for 5 minutes to prevent lag
         gcTime: 1000 * 60 * 10,
-        retry: false,
+        retry: 1,
       },
     },
   }));

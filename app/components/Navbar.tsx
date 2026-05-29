@@ -52,7 +52,7 @@ export default function Navbar() {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-white border-b-2 border-primary-dark">
+    <header className="sticky top-0 z-50 w-full bg-white border-b-2 border-primary-dark shadow-sm">
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
         {/* Logo and App Title */}
         <Link href="/" className="flex items-center gap-3 group hover:scale-[1.01] transition-transform">

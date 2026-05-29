@@ -2,8 +2,6 @@
 
 import Link from "next/link";
 import { useUserSession } from "./hooks/useUserSession";
-import { useEffect, useState } from "react";
-import { authClient } from "@/lib/auth/auth-client";
 import { HomeSkeleton } from "./components/Skeleton";
 import { useQuery } from "@tanstack/react-query";
 
@@ -18,55 +16,11 @@ interface CommunityItem {
   avatarColor: string;
 }
 
-interface DBCommunity {
-  id: string;
-  name: string;
-  category: string;
-  description: string;
-}
-
-interface DBMember {
-  user?: {
-    email: string;
-  } | null;
-  role: string;
-}
-
 export default function Home() {
   const { user, loading } = useUserSession();
-  const [mounted, setMounted] = useState(false);
-  const [sessionUser, setSessionUser] = useState<{
-    name: string;
-    email: string;
-  } | null>(null);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setMounted(true);
-    }, 0);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Fetch session from Better Auth
-  useEffect(() => {
-    async function fetchSession() {
-      try {
-        const session = await authClient.getSession();
-        if (session?.data?.user) {
-          setSessionUser({
-            name: session.data.user.name,
-            email: session.data.user.email,
-          });
-        }
-      } catch {
-        // Fallback
-      }
-    }
-    if (mounted) fetchSession();
-  }, [mounted]);
-
-  const isLoggedIn = (user && user.isLoggedIn) || !!sessionUser;
-  const activeEmail = sessionUser?.email || user?.email;
+  const isLoggedIn = !!(user && user.isLoggedIn);
+  const activeEmail = user?.email;
 
   // Optimized joined communities fetching with caching to eliminate lag
   const { data: myCommunities = [], isLoading: isFetchingCommunities } = useQuery({
@@ -111,11 +65,11 @@ export default function Home() {
         } as CommunityItem;
       });
     },
-    enabled: !!isLoggedIn && !!activeEmail,
+    enabled: isLoggedIn && !!activeEmail,
     staleTime: 1000 * 60 * 5, // Cache results for 5 minutes
   });
 
-  if (!mounted || loading || (isLoggedIn && isFetchingCommunities && myCommunities.length === 0)) {
+  if (loading || (isLoggedIn && isFetchingCommunities && myCommunities.length === 0)) {
     return <HomeSkeleton />;
   }
 
@@ -190,8 +144,8 @@ export default function Home() {
     );
   }
 
-  // Determine display name — prefer Better Auth session, fallback to localStorage
-  const displayName = sessionUser?.name || user?.name || "Figi";
+  // Determine display name from session hook
+  const displayName = user?.name || "Figi";
   const firstName = displayName.split(" ")[0];
 
   // LOGGED IN MOBILE-FIRST HOME VIEW (Exactly matching the mockup screenshot!)

@@ -345,24 +345,25 @@ export async function getCommunities(
     }
   }
 
-  // Get total count
-  const total = await prisma.community.count({ where });
-
-  const communities = await prisma.community.findMany({
-    where,
-    take: limit,
-    skip,
-    include: {
-      _count: {
-        select: {
-          members: true,
+  // Run count + findMany in parallel to halve DB latency
+  const [total, communities] = await Promise.all([
+    prisma.community.count({ where }),
+    prisma.community.findMany({
+      where,
+      take: limit,
+      skip,
+      include: {
+        _count: {
+          select: {
+            members: true,
+          },
         },
       },
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
+      orderBy: {
+        createdAt: "desc",
+      },
+    }),
+  ]);
 
   const enriched = await enrichCommunities(communities, currentUser);
   const totalPages = Math.ceil(total / limit);
