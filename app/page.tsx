@@ -81,54 +81,35 @@ export default function Home() {
       const data = result.data || result;
       if (!Array.isArray(data)) return [];
 
-      const mapped = await Promise.all(
-        data.map(async (c: DBCommunity) => {
-          try {
-            const mRes = await fetch(`/api/communities/${c.id}/members`);
-            if (mRes.ok) {
-              const mData = await mRes.json();
-              const userMembership = mData.find(
-                (m: DBMember) => m.user?.email === activeEmail,
-              );
+      const joinedCommunities = data.filter((c: any) => c.isJoined);
 
-              if (userMembership) {
-                const initials = c.name
-                  .split(" ")
-                  .map((w: string) => w[0])
-                  .join("")
-                  .toUpperCase()
-                  .slice(0, 2);
+      return joinedCommunities.map((c: any) => {
+        const initials = c.name
+          .split(" ")
+          .map((w: string) => w[0])
+          .join("")
+          .toUpperCase()
+          .slice(0, 2);
 
-                const avatarColorMap: Record<string, string> = {
-                  AKADEMIK: "bg-emerald-800 text-white",
-                  HOBI: "bg-red-800 text-white",
-                  KARIR: "bg-indigo-900 text-white",
-                  ORGANISASI: "bg-amber-600 text-white",
-                  EVENT: "bg-blue-800 text-white",
-                };
+        const avatarColorMap: Record<string, string> = {
+          AKADEMIK: "bg-emerald-800 text-white",
+          HOBI: "bg-red-800 text-white",
+          KARIR: "bg-indigo-900 text-white",
+          ORGANISASI: "bg-amber-600 text-white",
+          EVENT: "bg-blue-800 text-white",
+        };
 
-                return {
-                  id: c.id,
-                  name: c.name,
-                  category: c.category,
-                  description: c.description,
-                  membersCount: mData.length,
-                  role:
-                    userMembership.role === "ADMIN" ? "Admin" : "Anggota",
-                  initials,
-                  avatarColor:
-                    avatarColorMap[c.category] ||
-                    "bg-emerald-800 text-white",
-                } as CommunityItem;
-              }
-            }
-          } catch (e) {
-            console.warn(`Failed to fetch membership for ${c.id}:`, e);
-          }
-          return null;
-        }),
-      );
-      return mapped.filter((x): x is CommunityItem => x !== null);
+        return {
+          id: c.id,
+          name: c.name,
+          category: c.category,
+          description: c.description,
+          membersCount: c._count?.members || 0,
+          role: c.permissions?.isCommunityAdmin ? "Admin" : "Anggota",
+          initials,
+          avatarColor: avatarColorMap[c.category] || "bg-emerald-800 text-white",
+        } as CommunityItem;
+      });
     },
     enabled: !!isLoggedIn && !!activeEmail,
     staleTime: 1000 * 60 * 5, // Cache results for 5 minutes
