@@ -8,7 +8,7 @@ async function main() {
     const user = await auth.api.signUpEmail({
       body: {
         email: "admin@students.unnes.ac.id",
-        password: "password123",
+        password: "atmin123",
         name: "Global Admin",
       },
     });

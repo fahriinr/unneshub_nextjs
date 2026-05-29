@@ -86,6 +86,14 @@ export default function Navbar() {
           >
             Komunitas
           </Link>
+          {user.role === "global_admin" && (
+            <Link 
+              href="/admin/dashboard" 
+              className={`px-3 py-1.5 rounded-lg border-2 border-transparent transition-all ${pathname.startsWith("/admin") ? "bg-amber-50 border-primary-dark text-primary-dark shadow-[2px_2px_0px_0px_var(--color-primary-dark)]" : "hover:bg-slate-50"}`}
+            >
+              Dashboard
+            </Link>
+          )}
           <Link 
             href="/profile" 
             className={`px-3 py-1.5 rounded-lg border-2 border-transparent transition-all ${pathname === "/profile" ? "bg-amber-50 border-primary-dark text-primary-dark shadow-[2px_2px_0px_0px_var(--color-primary-dark)]" : "hover:bg-slate-50"}`}
@@ -158,6 +166,15 @@ export default function Navbar() {
                 >
                   🏘️ Komunitas
                 </Link>
+                {user.role === "global_admin" && (
+                  <Link 
+                    href="/admin/dashboard" 
+                    onClick={() => setDropdownOpen(false)}
+                    className="flex items-center w-full px-3 py-1.5 text-xs font-bold text-primary-dark hover:bg-slate-50 rounded-lg"
+                  >
+                    📊 Dashboard
+                  </Link>
+                )}
                 <Link 
                   href="/profile" 
                   onClick={() => setDropdownOpen(false)}

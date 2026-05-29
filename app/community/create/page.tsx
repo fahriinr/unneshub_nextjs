@@ -14,12 +14,7 @@ export default function CreateCommunityPage() {
   const [category, setCategory] = useState("AKADEMIK");
   const [description, setDescription] = useState("");
   const [rules, setRules] = useState("");
-  const [profileImage, setProfileImage] = useState<string | null>(null);
-
   // Simulation states
-  const [isScanning, setIsScanning] = useState(false);
-  const [ktmScanned, setKtmScanned] = useState(false);
-  const [ktmFileName, setKtmFileName] = useState("");
   const [formError, setFormError] = useState("");
   const [successToast, setSuccessToast] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -60,42 +55,7 @@ export default function CreateCommunityPage() {
     );
   }
 
-  // Handle Profile Upload Simulation
-  const handleProfileClick = () => {
-    const initials = name
-      ? name
-          .split(" ")
-          .map((w) => w[0])
-          .join("")
-          .slice(0, 2)
-          .toUpperCase()
-      : "KM";
-    const colors = ["#059669", "#2563EB", "#DB2777", "#D97706", "#0D9488"];
-    const randomColor = colors[Math.floor(Math.random() * colors.length)];
 
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
-      <rect width="100%" height="100%" fill="${randomColor}"/>
-      <text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="36" font-weight="bold" fill="white">${initials}</text>
-    </svg>`;
-    const dataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-    setProfileImage(dataUrl);
-  };
-
-  // Handle KTM Scan Simulator
-  const handleKtmScan = () => {
-    if (ktmScanned) {
-      setKtmScanned(false);
-      setKtmFileName("");
-      return;
-    }
-
-    setIsScanning(true);
-    setTimeout(() => {
-      setIsScanning(false);
-      setKtmScanned(true);
-      setKtmFileName(`KTM_${user.nim}_VERIFIED.jpg`);
-    }, 2000);
-  };
 
   // Submit Handler
   const handleSubmit = async (e: React.FormEvent) => {
@@ -141,9 +101,9 @@ export default function CreateCommunityPage() {
         throw new Error(err.error || "Gagal membuat komunitas");
       }
 
-      setSuccessToast("Komunitas berhasil dibuat! 🎉");
+      setSuccessToast("Komunitas berhasil dibuat! Sedang ditinjau oleh Admin ⏳🎉");
       setTimeout(() => {
-        router.push("/community/join");
+        router.push("/");
       }, 2000);
     } catch (apiError: any) {
       setFormError(apiError.message || "Gagal membuat komunitas");
@@ -248,134 +208,11 @@ export default function CreateCommunityPage() {
             />
           </div>
 
-          {/* PROFILE PICTURE BOX matching Screen 3 */}
-          <div className="flex flex-col gap-2">
-            <label className="text-[10px] font-extrabold text-slate-800 uppercase tracking-wider">
-              PROFILE
-            </label>
-
-            <button
-              type="button"
-              onClick={handleProfileClick}
-              disabled={submitting}
-              className="w-full min-h-[110px] bg-[#E2E5E9] rounded-xl flex flex-col items-center justify-center gap-2 cursor-pointer transition-all hover:bg-slate-200"
-            >
-              {profileImage ? (
-                <img
-                  src={profileImage}
-                  alt="Profile Preview"
-                  className="w-14 h-14 rounded-xl object-cover p-0.5 bg-white shadow-sm"
-                />
-              ) : (
-                <div className="flex flex-col items-center justify-center gap-2 text-[#8FA0AF]">
-                  {/* Camera icon matching mockup */}
-                  <svg
-                    className="w-6 h-6 text-slate-500"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
-                    />
-                  </svg>
-                  <span className="text-[10px] font-extrabold text-slate-500">
-                    Upload Profile
-                  </span>
-                </div>
-              )}
-            </button>
-          </div>
-
-          {/* SCAN KTM matching Screen 3 */}
-          <div className="flex flex-col gap-2">
-            <label className="text-[10px] font-extrabold text-slate-800 uppercase tracking-wider">
-              SCAN KTM
-            </label>
-
-            <div className="w-full bg-[#E2E5E9] rounded-xl p-3.5 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <svg
-                  className="w-5 h-5 text-slate-500 shrink-0"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                  />
-                </svg>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-[10px] font-extrabold text-[#0B1E36]">
-                    {ktmScanned ? "KTM Terverifikasi" : "Verifikasi KTM"}
-                  </span>
-                  {ktmScanned && (
-                    <span className="text-[8px] font-bold text-slate-500 truncate block max-w-[150px]">
-                      {ktmFileName}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleKtmScan}
-                disabled={isScanning || submitting}
-                className="text-[10px] font-extrabold px-5 py-1.5 bg-white border border-transparent rounded-full text-[#0B1E36] hover:bg-slate-50 shadow-sm transition-all shrink-0 cursor-pointer"
-              >
-                {isScanning ? (
-                  <span className="flex items-center gap-1">
-                    <svg
-                      className="animate-spin h-3 w-3 text-[#0B1E36]"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      />
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      />
-                    </svg>
-                    Scanning...
-                  </span>
-                ) : ktmScanned ? (
-                  "Batal"
-                ) : (
-                  "Scan"
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* ... separator as in the mockup */}
-          <div className="text-center font-black text-slate-400 text-sm mt-1 mb-1">
-            ...
-          </div>
-
           {/* Solid Black/Navy Submit Button with user-plus icon matching Screen 3 */}
           <button
             type="submit"
-            disabled={submitting || isScanning}
-            className="w-full py-3.5 bg-[#0B1E36] rounded-full text-white text-xs font-extrabold flex items-center justify-center gap-2 hover:bg-black/90 active:scale-99 transition-all cursor-pointer shadow-md"
+            disabled={submitting}
+            className="w-full py-3.5 bg-[#0B1E36] rounded-full text-white text-xs font-extrabold flex items-center justify-center gap-2 hover:bg-black/90 active:scale-99 transition-all cursor-pointer shadow-md mt-4"
           >
             {submitting ? (
               <>

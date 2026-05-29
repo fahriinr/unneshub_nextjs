@@ -14,6 +14,7 @@ interface CommunityItem {
   role: "Admin" | "Anggota";
   initials: string;
   avatarColor: string;
+  status: string;
 }
 
 export default function Home() {
@@ -62,6 +63,7 @@ export default function Home() {
           role: c.permissions?.isCommunityAdmin ? "Admin" : "Anggota",
           initials,
           avatarColor: avatarColorMap[c.category] || "bg-emerald-800 text-white",
+          status: c.status,
         } as CommunityItem;
       });
     },
@@ -202,8 +204,12 @@ export default function Home() {
                   </p>
                 </div>
 
-                {/* Role pill badge matching mockup */}
-                {community.role && (
+                {/* Role pill or Pending status badge matching mockup */}
+                {community.status === "PENDING_APPROVAL" ? (
+                  <span className="text-[9px] font-extrabold px-3 py-1 bg-[#F2C010] text-[#0B1E36] rounded-full shadow-sm shrink-0 border border-transparent animate-pulse">
+                    Pending
+                  </span>
+                ) : community.role && (
                   <span className="text-[9px] font-extrabold px-3 py-1 bg-white text-[#0B1E36] rounded-full shadow-sm shrink-0 border border-transparent">
                     {community.role}
                   </span>

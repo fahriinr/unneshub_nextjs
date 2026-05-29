@@ -186,7 +186,7 @@ export async function createCommunity(data: CreateCommunityInput) {
         rules: data.rules,
         category: data.category as CommunityCategory,
         creatorId: user.id,
-        status: "APPROVED" as CommunityStatus,
+        status: "PENDING_APPROVAL" as CommunityStatus,
       },
     });
 

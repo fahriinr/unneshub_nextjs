@@ -12,6 +12,14 @@ export async function requireAuth() {
   return session.user;
 }
 
+export async function requireGlobalAdmin() {
+  const user = await requireAuth();
+  if (user.role !== "GLOBAL_ADMIN") {
+    throw new Error("Forbidden: Global Admin privileges required");
+  }
+  return user;
+}
+
 export async function requireCommunityMember(communityId: string) {
   const user = await requireAuth();
 
