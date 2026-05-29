@@ -51,6 +51,13 @@ interface CommunityDetails {
   isVerified?: boolean;
   avatarColor: string;
   onlineCount: number;
+  permissions: {
+    canEdit: boolean;
+    canDelete: boolean;
+    canManageMembers: boolean;
+    isCommunityAdmin: boolean;
+    isCommunityOwner: boolean;
+  };
 }
 
 export default function CommunityDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -79,6 +86,11 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
   const [eventTitle, setEventTitle] = useState("");
   const [eventTime, setEventTime] = useState("");
   const [eventLocation, setEventLocation] = useState("");
+
+  // Leave community modal states
+  const [showMenuModal, setShowMenuModal] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [leavingCommunity, setLeavingCommunity] = useState(false);
 
   // Route protection
   useEffect(() => {
@@ -157,6 +169,13 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
           avatarColor: avatarColorMap[commData.category] || "bg-emerald-700 text-white",
           onlineCount: Math.max(1, Math.floor((commData._count?.members || 1) / 5)),
           rules: commData.rules || "",
+          permissions: commData.permissions || {
+            canEdit: false,
+            canDelete: false,
+            canManageMembers: false,
+            isCommunityAdmin: false,
+            isCommunityOwner: false,
+          },
         });
 
         // Map posts
@@ -332,7 +351,7 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
       authorName: user.role === "global_admin" ? "Global Admin" : `Admin ${community?.initials || "K"}`,
       authorEmail: user.email,
       authorNim: user.nim,
-      avatarLetter: user.role === "global_admin" ? "G" : "A",
+      avatarLetter: (user.name || "A").charAt(0).toUpperCase(),
       timeAgo: "Baru saja",
       content: `Pengumuman Event baru yang diselenggarakan oleh komunitas. Jangan sampai ketinggalan ya!`,
       isAnonymous: false,
@@ -505,7 +524,7 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
     );
   }
 
-  const isAdmin = user.role === "community_admin" || user.role === "global_admin" || memberRole === "ADMIN";
+  const isAdmin = community.permissions.isCommunityAdmin || community.permissions.isCommunityOwner || user.role === "global_admin" || memberRole === "ADMIN";
 
   // ==========================================
   // VIEW 1: VISITOR / INFORMASI KOMUNITAS VIEW (NOT JOINED)
@@ -680,8 +699,11 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
           </div>
         </div>
 
-        {/* Three dots vertical menu on the right matching Screen 3 */}
-        <button className="p-1 hover:opacity-80 transition-opacity">
+        {/* Three dots vertical menu on the right */}
+        <button 
+          onClick={() => setShowMenuModal(true)}
+          className="p-1 hover:opacity-80 transition-opacity cursor-pointer"
+        >
           <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
           </svg>
@@ -1104,6 +1126,121 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
               </button>
             </form>
 
+          </div>
+        </div>
+      )}
+      {/* Menu Modal */}
+      {showMenuModal && (
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40" onClick={() => setShowMenuModal(false)}>
+          <div 
+            className="w-full max-w-md bg-white rounded-t-2xl shadow-2xl animate-in slide-in-from-bottom duration-200 pb-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Drag handle */}
+            <div className="flex justify-center pt-3 pb-2">
+              <div className="w-10 h-1 bg-slate-300 rounded-full" />
+            </div>
+            <div className="px-4 flex flex-col gap-1">
+              <button
+                onClick={() => {
+                  setShowMenuModal(false);
+                  setShowLeaveConfirm(true);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left hover:bg-red-50 transition-colors cursor-pointer"
+              >
+                <span className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                  <svg className="w-4.5 h-4.5 text-red-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                </span>
+                <div>
+                  <p className="text-sm font-extrabold text-red-600">Keluar Komunitas</p>
+                  <p className="text-[10px] font-semibold text-slate-400">Tinggalkan komunitas ini</p>
+                </div>
+              </button>
+              <button
+                onClick={() => setShowMenuModal(false)}
+                className="w-full py-3 text-center text-xs font-extrabold text-slate-500 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer mt-1"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Leave Confirmation Danger Modal */}
+      {showLeaveConfirm && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-6">
+          <div 
+            className="w-full max-w-sm bg-white rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Red danger header */}
+            <div className="bg-red-600 px-6 py-5 flex flex-col items-center">
+              <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center mb-3">
+                <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                </svg>
+              </div>
+              <h3 className="text-white font-black text-sm tracking-tight">Peringatan!</h3>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-5 text-center">
+              <p className="text-sm font-extrabold text-[#0B1E36] leading-relaxed">
+                Apa kamu yakin meninggalkan komunitas ini?
+              </p>
+              <p className="text-[11px] font-semibold text-slate-400 mt-2 leading-relaxed">
+                Kamu perlu bergabung kembali jika ingin mengakses diskusi dan konten komunitas.
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="px-6 pb-5 flex gap-3">
+              <button
+                onClick={() => setShowLeaveConfirm(false)}
+                disabled={leavingCommunity}
+                className="flex-1 py-3 bg-slate-100 text-[#0B1E36] font-extrabold text-xs rounded-xl hover:bg-slate-200 transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                onClick={async () => {
+                  setLeavingCommunity(true);
+                  try {
+                    const res = await fetch(`/api/communities/${id}/leave`, {
+                      method: "POST",
+                    });
+                    if (res.ok) {
+                      setShowLeaveConfirm(false);
+                      triggerToast("Berhasil keluar dari komunitas.");
+                      setTimeout(() => router.push("/"), 1000);
+                    } else {
+                      const err = await res.json();
+                      triggerToast(err.error || "Gagal keluar dari komunitas.");
+                    }
+                  } catch (err) {
+                    console.error(err);
+                    triggerToast("Gagal menyambungkan ke server.");
+                  } finally {
+                    setLeavingCommunity(false);
+                  }
+                }}
+                disabled={leavingCommunity}
+                className="flex-1 py-3 bg-red-600 text-white font-extrabold text-xs rounded-xl hover:bg-red-700 transition-colors cursor-pointer shadow-md"
+              >
+                {leavingCommunity ? (
+                  <span className="flex items-center justify-center gap-1.5">
+                    <svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Memproses...
+                  </span>
+                ) : "Ya, Keluar"}
+              </button>
+            </div>
           </div>
         </div>
       )}

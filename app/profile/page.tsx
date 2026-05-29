@@ -1,13 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useUserSession } from "../hooks/useUserSession";
 
 const FAKULTAS_LIST = [
-  "FMIPA (Fakultas Matematika & Ilmu Pengetahuan Alam)",
+  "FMIPA (Fakultas Matematika dan Ilmu Pengetahuan Alam)",
   "FT (Fakultas Teknik)",
   "FEB (Fakultas Ekonomika dan Bisnis)",
   "FH (Fakultas Hukum)",
@@ -17,47 +15,73 @@ const FAKULTAS_LIST = [
   "FIK (Fakultas Ilmu Keolahragaan)",
 ];
 
+export interface CommunityDetails {
+  id: string;
+  name: string;
+  category: string;
+}
+
+export interface PostItem {
+  id: string;
+  content: string;
+}
+
 export default function ProfilePage() {
   const router = useRouter();
-  const { user, loading, updateProfile } = useUserSession();
+  const { user, loading, updateProfile, logout } = useUserSession();
   const [isEditing, setIsEditing] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  // Edit state forms
+  // Stats from Database APIs
+  const [joinedCount, setJoinedCount] = useState(5); // default mock / fallback
+  const [postsCount, setPostsCount] = useState(23); // default mock / fallback
+  const [adminCount, setAdminCount] = useState(2); // default mock / fallback
+
+  // Form states
   const [editName, setEditName] = useState("");
   const [editNim, setEditNim] = useState("");
   const [editFakultas, setEditFakultas] = useState("");
-  const [editJurusan, setEditJurusan] = useState("");
-  const [editProdi, setEditProdi] = useState("");
-  const [editAngkatan, setEditAngkatan] = useState("");
   const [editMinat, setEditMinat] = useState<string[]>([]);
   const [newMinatTag, setNewMinatTag] = useState("");
+  const [formError, setFormError] = useState("");
+  const [successToast, setSuccessToast] = useState("");
 
-  const [prevUser, setPrevUser] = useState<unknown>(null);
+  const [prevUser, setPrevUser] = useState<any>(null);
 
-  // Sync state with user data once loaded
+  // Sync state with user session data
   if (user && user !== prevUser) {
     setPrevUser(user);
     setEditName(user.name || "");
     setEditNim(user.nim || "");
     setEditFakultas(user.fakultas || "");
-    setEditJurusan(user.jurusan || "");
-    setEditProdi(user.prodi || "");
-    setEditAngkatan(user.angkatan || "");
     setEditMinat(user.minat || []);
   }
 
-  const handleCancel = () => {
-    if (user) {
-      setEditName(user.name || "");
-      setEditNim(user.nim || "");
-      setEditFakultas(user.fakultas || "");
-      setEditJurusan(user.jurusan || "");
-      setEditProdi(user.prodi || "");
-      setEditAngkatan(user.angkatan || "");
-      setEditMinat(user.minat || []);
+  // Fetch real profile and stats from database API
+  useEffect(() => {
+    async function fetchRealProfile() {
+      try {
+        const res = await fetch("/api/profile");
+        if (res.ok) {
+          const profileData = await res.json();
+          // Calculate counts
+          const joined = profileData.memberships?.length || 0;
+          const posts = profileData.posts?.length || 0;
+          const admin = (profileData.memberships?.filter((m: any) => m.role === "ADMIN")?.length || 0) + (profileData.createdCommunities?.length || 0);
+
+          setJoinedCount(joined);
+          setPostsCount(posts);
+          setAdminCount(admin);
+        }
+      } catch (err) {
+        console.warn("Failed to fetch real profile data, using session counts:", err);
+      }
     }
-    setIsEditing(false);
-  };
+
+    if (user?.isLoggedIn) {
+      fetchRealProfile();
+    }
+  }, [user]);
 
   // Route protection
   useEffect(() => {
@@ -69,8 +93,8 @@ export default function ProfilePage() {
   if (loading || !user) {
     return (
       <div className="flex-1 flex items-center justify-center p-8 bg-[#FDFBF7]">
-        <div className="text-center font-bold text-primary-dark">
-          <svg className="animate-spin h-8 w-8 mx-auto mb-4 text-primary-dark" fill="none" viewBox="0 0 24 24">
+        <div className="text-center font-bold text-[#0B1E36]">
+          <svg className="animate-spin h-8 w-8 mx-auto mb-4 text-[#0B1E36]" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
           </svg>
@@ -80,20 +104,76 @@ export default function ProfilePage() {
     );
   }
 
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editName.trim()) return;
+  // Handle Logout Confirmation
+  const handleLogout = () => {
+    logout();
+    router.push("/login");
+  };
 
-    updateProfile({
-      name: editName.trim(),
-      nim: editNim.trim(),
-      fakultas: editFakultas,
-      jurusan: editJurusan.trim(),
-      prodi: editProdi.trim(),
-      angkatan: editAngkatan.trim(),
-      minat: editMinat,
-    });
+  const handleCancel = () => {
+    if (user) {
+      setEditName(user.name || "");
+      setEditNim(user.nim || "");
+      setEditFakultas(user.fakultas || "");
+      setEditMinat(user.minat || []);
+    }
     setIsEditing(false);
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError("");
+
+    if (editName.trim().length < 3) {
+      setFormError("Nama minimal 3 karakter!");
+      return;
+    }
+
+    try {
+      // 1. Save core attributes in the database
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: editName.trim(),
+          prodi: user.prodi || "",
+          angkatan: user.angkatan || "",
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Gagal memperbarui database profile");
+      }
+
+      // 2. Save hybrid offline attributes in Session state
+      updateProfile({
+        name: editName.trim(),
+        nim: editNim.trim(),
+        fakultas: editFakultas,
+        minat: editMinat,
+      });
+
+      setSuccessToast("Profil berhasil diperbarui! 🎉");
+      setTimeout(() => setSuccessToast(""), 3000);
+      setIsEditing(false);
+    } catch (err: any) {
+      console.warn("DB Patch failed, updating session only:", err);
+      
+      // Fallback update session only
+      updateProfile({
+        name: editName.trim(),
+        nim: editNim.trim(),
+        fakultas: editFakultas,
+        minat: editMinat,
+      });
+
+      setSuccessToast("Profil diperbarui! 🎉");
+      setTimeout(() => setSuccessToast(""), 3000);
+      setIsEditing(false);
+    }
   };
 
   const handleAddMinat = (e: React.KeyboardEvent) => {
@@ -110,257 +190,216 @@ export default function ProfilePage() {
     setEditMinat(editMinat.filter((tag) => tag !== tagToRemove));
   };
 
-  return (
-    <div className="flex-1 max-w-4xl w-full mx-auto px-4 py-8 bg-[#FDFBF7] flex flex-col gap-6">
-      {/* Back Link */}
-      <div>
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1 text-sm font-bold text-primary-dark hover:underline transition-all"
-        >
-          <span className="text-lg">‹</span> Kembali
-        </Link>
-      </div>
+  const avatarInitial = (user.name || "F").charAt(0).toUpperCase();
 
-      {/* Main Profile Neo-Card */}
-      <div className="neo-card-thick bg-white overflow-hidden p-0 relative">
-        {/* Banner Area */}
-        <div className="h-44 bg-[#E5E7EB] border-b-2 border-primary-dark relative flex items-center justify-center text-slate-400">
-          <svg className="w-12 h-12 stroke-[1.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375 0 11-.75 0 .375 0 01.75 0z" />
-          </svg>
-          <span className="absolute bottom-2 right-3 text-[10px] font-extrabold bg-white border border-primary-dark px-2 py-0.5 rounded shadow-[1px_1px_0px_0px_#0A1D37]">
-            Dimensi Rekomendasi: 1200x400
-          </span>
+  return (
+    <div className="flex-1 w-full bg-[#FDFBF7] flex flex-col min-h-screen relative font-sans">
+      {/* Toast Notification */}
+      {successToast && (
+        <div className="fixed top-5 left-4 right-4 md:left-auto md:right-5 z-50 bg-[#F2C010] text-[#0B1E36] font-extrabold px-6 py-4 rounded-xl shadow-lg text-center text-sm animate-bounce">
+          {successToast}
+        </div>
+      )}
+
+      {/* Navy Header Block exactly matching Image 3 */}
+      <div className="relative bg-[#0B1E36] pt-12 pb-8 px-6 text-center text-white shrink-0 shadow-md">
+        {/* Edit Pill Button in top right */}
+        <button
+          onClick={() => {
+            if (isEditing) {
+              handleCancel();
+            } else {
+              setIsEditing(true);
+            }
+          }}
+          className="absolute top-4 right-4 px-4 py-1 bg-[#0B1E36] border border-white/20 hover:bg-white/10 text-white font-extrabold text-[10px] rounded-full transition-all cursor-pointer uppercase tracking-wider shadow-sm"
+        >
+          Edit
+        </button>
+
+        {/* Large Yellow Avatar Circle */}
+        <div className="w-24 h-24 bg-[#F2C010] rounded-full border-4 border-[#0B1E36] mx-auto flex items-center justify-center font-black text-4xl text-[#0C0A09] shadow-md mb-3 select-none">
+          {avatarInitial}
         </div>
 
-        {/* Card Header & Avatar Segment */}
-        <div className="px-6 md:px-8 pb-8 pt-4">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-            {/* Avatar Container (overlapped) */}
-            <div className="relative -mt-20 md:-mt-24 w-28 h-28 md:w-32 md:h-32 rounded-full border-4 border-primary-dark bg-white overflow-hidden shadow-[3px_3px_0px_0px_var(--color-primary-dark)] flex items-center justify-center z-10">
-              {user.profilePicture ? (
-                <Image src={user.profilePicture} alt={user.name} width={128} height={128} unoptimized className="w-full h-full object-cover" />
+        {/* User Name & Email */}
+        {isEditing ? (
+          <div className="max-w-[200px] mx-auto">
+            <input
+              type="text"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              className="w-full text-center bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-sm font-extrabold text-white outline-none focus:bg-white/20"
+              placeholder="Nama"
+            />
+            <p className="text-[10px] text-slate-400 mt-1 select-none leading-none">{user.email}</p>
+          </div>
+        ) : (
+          <>
+            <h1 className="text-xl font-extrabold tracking-tight leading-snug">{user.name}</h1>
+            <p className="text-xs font-semibold text-slate-300 mt-1 select-none leading-none">{user.email}</p>
+          </>
+        )}
+
+        {/* Stat Row exactly matching Image 3 */}
+        <div className="flex items-center justify-center gap-6 mt-6 pt-4 border-t border-white/10 text-xs font-extrabold text-white select-none">
+          <div className="flex flex-col items-center">
+            <span className="text-lg font-black text-[#F2C010]">{joinedCount}</span>
+            <span className="text-[9px] font-bold text-slate-300 uppercase mt-0.5 leading-none">Komunitas</span>
+          </div>
+          <div className="w-px h-8 bg-white/20"></div>
+          <div className="flex flex-col items-center">
+            <span className="text-lg font-black text-[#F2C010]">{postsCount}</span>
+            <span className="text-[9px] font-bold text-slate-300 uppercase mt-0.5 leading-none">Postingan</span>
+          </div>
+          <div className="w-px h-8 bg-white/20"></div>
+          <div className="flex flex-col items-center">
+            <span className="text-lg font-black text-[#F2C010]">{adminCount}</span>
+            <span className="text-[9px] font-bold text-slate-300 uppercase mt-0.5 leading-none">Admin</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Surface Grey Card Area exactly matching Image 3 */}
+      <div className="flex-1 bg-[#E2E5E9]/75 border-t border-slate-200/50 rounded-t-3xl -mt-4 px-5 py-6 flex flex-col gap-5 shadow-inner">
+        {showLogoutConfirm ? (
+          /* Logout confirmation view overlay inside the grey card */
+          <div className="bg-white border border-slate-200/50 rounded-2xl p-6 shadow-md text-center flex flex-col gap-4 animate-in zoom-in-95 duration-200 mt-4">
+            <p className="text-xs font-black text-[#0B1E36] leading-relaxed">
+              Anda yakin ingin keluar dari akun ?
+            </p>
+            <div className="flex gap-3 justify-center mt-2">
+              <button
+                onClick={handleLogout}
+                className="px-6 py-2.5 bg-[#22C55E] text-white font-extrabold text-xs rounded-lg hover:bg-emerald-600 transition-colors shadow-sm active:scale-95 cursor-pointer min-w-[90px]"
+              >
+                Keluar
+              </button>
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                className="px-6 py-2.5 bg-[#EF4444] text-white font-extrabold text-xs rounded-lg hover:bg-red-600 transition-colors shadow-sm active:scale-95 cursor-pointer min-w-[90px]"
+              >
+                Tidak
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* Standard fields list */
+          <>
+            {/* NIM Field Container */}
+            <div className="flex flex-col gap-2">
+              <label className="text-[9px] font-black text-slate-600 uppercase tracking-wider pl-1 select-none">NIM</label>
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={editNim}
+                  onChange={(e) => setEditNim(e.target.value)}
+                  placeholder="2404140065"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-[#0B1E36] outline-none shadow-sm transition-all focus:border-slate-300"
+                />
               ) : (
-                <div className="w-full h-full bg-[#FEF3C7] flex items-center justify-center">
-                  <svg className="w-14 h-14 text-primary-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
+                <div className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-[#0B1E36] shadow-sm select-text">
+                  {user.nim || "Belum diisi"}
                 </div>
               )}
             </div>
 
-            {/* Edit Profile Action */}
-            <button
-              onClick={() => setIsEditing(true)}
-              className="neo-button-white text-xs py-2 px-4 flex items-center gap-1.5 ml-auto md:ml-0"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              Edit Profil
-            </button>
-          </div>
-
-          {/* User Name and Handle */}
-          <div className="mb-6">
-            <h2 className="text-2xl font-extrabold text-primary-dark tracking-tight">{user.name}</h2>
-            <p className="text-sm font-semibold text-text-muted mt-0.5">
-              @{user.email.split("@")[0]}
-            </p>
-          </div>
-
-          {/* Details Table/Grid */}
-          <div className="border-t-2 border-slate-100 pt-6 flex flex-col gap-4 text-sm">
-            <div className="grid grid-cols-3 py-1 border-b border-dashed border-slate-100">
-              <span className="font-bold text-text-muted">Fakultas</span>
-              <span className="col-span-2 font-extrabold text-primary-dark">{user.fakultas}</span>
-            </div>
-            
-            <div className="grid grid-cols-3 py-1 border-b border-dashed border-slate-100">
-              <span className="font-bold text-text-muted">Jurusan</span>
-              <span className="col-span-2 font-extrabold text-primary-dark">
-                {user.jurusan || "Belum diisi"}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-3 py-1 border-b border-dashed border-slate-100">
-              <span className="font-bold text-text-muted">Prodi</span>
-              <span className="col-span-2 font-extrabold text-primary-dark">
-                {user.prodi || "Belum diisi"}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-3 py-1 border-b border-dashed border-slate-100">
-              <span className="font-bold text-text-muted">Angkatan</span>
-              <span className="col-span-2 font-extrabold text-primary-dark">
-                {user.angkatan || "Belum diisi"}
-              </span>
-            </div>
-
-            {/* Interest Tags */}
-            <div className="grid grid-cols-3 py-2 items-center">
-              <span className="font-bold text-text-muted">Minat</span>
-              <div className="col-span-2 flex flex-wrap gap-2">
-                {user.minat && user.minat.length > 0 ? (
-                  user.minat.map((tag) => (
-                    <span key={tag} className="neo-badge text-xs bg-white">
-                      {tag}
-                    </span>
-                  ))
-                ) : (
-                  <span className="text-xs font-semibold text-text-muted italic">
-                    Belum ada minat yang ditambahkan
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* EDIT PROFILE MODAL */}
-      {isEditing && (
-        <div className="fixed inset-0 z-50 bg-[#0A1D37]/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-xl bg-white border-2.5 border-primary-dark rounded-2xl p-6 md:p-8 shadow-[6px_6px_0px_0px_var(--color-primary-dark)] max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
-            {/* Modal Header */}
-            <div className="flex justify-between items-center pb-4 border-b-2 border-slate-100 mb-6">
-              <h3 className="text-xl font-extrabold text-primary-dark tracking-tight">📝 Edit Profil Saya</h3>
-              <button
-                onClick={handleCancel}
-                className="w-8 h-8 rounded-full border border-primary-dark flex items-center justify-center font-bold text-primary-dark hover:bg-slate-50 cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Modal Edit Form */}
-            <form onSubmit={handleSave} className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-primary-dark uppercase tracking-wider">Nama Lengkap</label>
-                <input
-                  type="text"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  className="neo-input text-sm"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-primary-dark uppercase tracking-wider">NIM</label>
-                  <input
-                    type="text"
-                    value={editNim}
-                    onChange={(e) => setEditNim(e.target.value)}
-                    className="neo-input text-sm"
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-primary-dark uppercase tracking-wider">Angkatan</label>
-                  <input
-                    type="text"
-                    value={editAngkatan}
-                    onChange={(e) => setEditAngkatan(e.target.value)}
-                    placeholder="e.g. 2021"
-                    className="neo-input text-sm"
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-primary-dark uppercase tracking-wider">Fakultas</label>
+            {/* Fakultas Field Container */}
+            <div className="flex flex-col gap-2">
+              <label className="text-[9px] font-black text-slate-600 uppercase tracking-wider pl-1 select-none">Fakultas</label>
+              {isEditing ? (
                 <select
                   value={editFakultas}
                   onChange={(e) => setEditFakultas(e.target.value)}
-                  className="neo-input text-sm appearance-none cursor-pointer"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-[#0B1E36] outline-none appearance-none cursor-pointer shadow-sm focus:border-slate-300"
                 >
+                  <option value="">Pilih Fakultas</option>
                   {FAKULTAS_LIST.map((f) => (
                     <option key={f} value={f}>
                       {f}
                     </option>
                   ))}
                 </select>
-              </div>
+              ) : (
+                <div className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-[#0B1E36] leading-relaxed shadow-sm select-text">
+                  {user.fakultas || "Belum diisi"}
+                </div>
+              )}
+            </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-primary-dark uppercase tracking-wider">Jurusan</label>
+            {/* Minat Tags Field Container */}
+            <div className="flex flex-col gap-2">
+              <label className="text-[9px] font-black text-slate-600 uppercase tracking-wider pl-1 select-none">Minat</label>
+              
+              {isEditing ? (
+                <div className="flex flex-col gap-2">
                   <input
                     type="text"
-                    value={editJurusan}
-                    onChange={(e) => setEditJurusan(e.target.value)}
-                    placeholder="e.g. Ilmu Komputer"
-                    className="neo-input text-sm"
+                    value={newMinatTag}
+                    onChange={(e) => setNewMinatTag(e.target.value)}
+                    onKeyDown={handleAddMinat}
+                    placeholder="Ketik minat & tekan Enter..."
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-[#0B1E36] outline-none shadow-sm transition-all focus:border-slate-300"
                   />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-primary-dark uppercase tracking-wider">Prodi</label>
-                  <input
-                    type="text"
-                    value={editProdi}
-                    onChange={(e) => setEditProdi(e.target.value)}
-                    placeholder="e.g. Sistem Informasi (S1)"
-                    className="neo-input text-sm"
-                  />
-                </div>
-              </div>
-
-              {/* Interest Tag Edit Section */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-primary-dark uppercase tracking-wider">
-                  Minat / Topik (Tekan Enter untuk menambah)
-                </label>
-                <input
-                  type="text"
-                  value={newMinatTag}
-                  onChange={(e) => setNewMinatTag(e.target.value)}
-                  onKeyDown={handleAddMinat}
-                  placeholder="Tambahkan minat..."
-                  className="neo-input text-sm mb-2"
-                />
-                <div className="flex flex-wrap gap-2 p-3 bg-slate-50 border-2 border-primary-dark rounded-lg min-h-[50px]">
-                  {editMinat.length > 0 ? (
-                    editMinat.map((tag) => (
+                  <div className="flex flex-wrap gap-2 p-2.5 bg-white rounded-xl border border-slate-200 min-h-[42px] shadow-sm select-none">
+                    {editMinat.map((tag) => (
                       <span
                         key={tag}
-                        className="neo-badge-yellow text-xs flex items-center gap-1.5 cursor-pointer hover:bg-amber-300"
                         onClick={() => handleRemoveMinat(tag)}
+                        className="inline-flex items-center gap-1 px-3 py-1 bg-amber-100 hover:bg-red-50 hover:text-red-600 text-[#0B1E36] rounded-full text-[10px] font-extrabold cursor-pointer transition-all border border-amber-200/50"
                         title="Klik untuk menghapus"
                       >
-                        {tag} <span className="font-extrabold text-[10px]">✕</span>
+                        {tag} <span className="font-extrabold text-[8px]">✕</span>
+                      </span>
+                    ))}
+                    {editMinat.length === 0 && (
+                      <span className="text-[10px] font-bold text-slate-400 italic p-1">Tambahkan minat di atas.</span>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2 min-h-[42px] select-text">
+                  {user.minat && user.minat.length > 0 ? (
+                    user.minat.map((tag) => (
+                      <span key={tag} className="px-3.5 py-1.5 bg-white border border-slate-150 rounded-full text-[10px] font-extrabold text-[#0B1E36] shadow-sm">
+                        {tag}
                       </span>
                     ))
                   ) : (
-                    <span className="text-xs font-semibold text-text-muted italic">
-                      Belum ada minat. Ketik di atas dan tekan Enter.
-                    </span>
+                    <span className="text-xs font-semibold text-slate-400 italic pl-1">Belum ada minat</span>
                   )}
                 </div>
-              </div>
+              )}
+            </div>
 
-              {/* Modal Save Action Buttons */}
-              <div className="flex justify-end gap-3 mt-4 border-t-2 border-slate-100 pt-4">
-                <button
-                  type="button"
-                  onClick={handleCancel}
-                  className="neo-button-white text-xs px-4 py-2"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="neo-button-yellow text-xs px-6 py-2"
-                >
-                  Simpan Perubahan
-                </button>
+            {/* Error Message */}
+            {formError && (
+              <div className="text-[10px] font-black text-red-600 bg-red-50 border border-red-200 p-3.5 rounded-xl">
+                ⚠️ {formError}
               </div>
-            </form>
-          </div>
-        </div>
-      )}
+            )}
+
+            {/* Red Action Button at bottom */}
+            <div className="mt-4 pb-24 shrink-0">
+              {isEditing ? (
+                <button
+                  onClick={handleSave}
+                  className="w-full py-3.5 bg-[#EF4444] text-white font-extrabold text-xs rounded-xl shadow-md hover:bg-red-600 active:scale-99 transition-all cursor-pointer text-center select-none uppercase tracking-wide"
+                >
+                  Edit Profil
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowLogoutConfirm(true)}
+                  className="w-full py-3.5 bg-[#EF4444] text-white font-extrabold text-xs rounded-xl shadow-md hover:bg-red-600 active:scale-99 transition-all cursor-pointer text-center select-none uppercase tracking-wide"
+                >
+                  Keluar Akun
+                </button>
+              )}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

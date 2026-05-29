@@ -162,10 +162,8 @@ body {
 
 /* ========== Mobile-First Bottom Navigation ========== */
 .bottom-nav {
-  position: fixed;
+  position: sticky;
   bottom: 0;
-  left: 0;
-  right: 0;
   z-index: 50;
   background-color: var(--bg-light);
   border-top: 2px solid var(--primary-dark);
@@ -174,6 +172,7 @@ body {
   justify-content: space-around;
   height: 60px;
   padding: 0 8px;
+  width: 100%;
 }
 
 .bottom-nav-item {
@@ -276,12 +275,7 @@ body {
   box-shadow: 0 0 0 2px rgba(10, 29, 55, 0.1);
 }
 
-/* ========== Mobile body padding when bottom nav visible ========== */
-@media (max-width: 767px) {
-  .has-bottom-nav {
-    padding-bottom: 68px;
-  }
-}
+/* Bottom nav is sticky now, no extra padding needed */
 
 /* ========== Fade-in animation ========== */
 @keyframes fadeInUp {

@@ -6,7 +6,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 
 export default function Navbar() {
-  const { user, updateRole, logout } = useUserSession();
+  const { user, logout } = useUserSession();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -26,11 +26,6 @@ export default function Navbar() {
   if (!user || !user.isLoggedIn) {
     return null;
   }
-
-  const handleRoleChange = (role: UserRole) => {
-    updateRole(role);
-    setDropdownOpen(false);
-  };
 
   const getRoleLabel = (role: UserRole) => {
     switch (role) {
@@ -101,9 +96,9 @@ export default function Navbar() {
 
         {/* Right Area: User Profile drop & Role Selector */}
         <div className="flex items-center gap-3" ref={dropdownRef}>
-          {/* Active Role Indicator (Quick view) */}
+          {/* Active Role Indicator */}
           <div className="hidden sm:flex flex-col items-end">
-            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Simulasi Role:</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Role Anda:</span>
             <span className={`text-[10px] font-extrabold px-2 py-0.5 border border-primary-dark rounded shadow-[1px_1px_0px_0px_var(--color-primary-dark)] ${
               user.role === "global_admin" ? "bg-red-200" : user.role === "community_admin" ? "bg-amber-200" : "bg-green-200"
             }`}>
@@ -133,7 +128,18 @@ export default function Navbar() {
               <div className="px-4 py-3 border-b-2 border-slate-100">
                 <p className="font-extrabold text-sm text-primary-dark line-clamp-1">{user.name}</p>
                 <p className="text-xs font-medium text-text-muted line-clamp-1">{user.email}</p>
-                <p className="text-[10px] mt-1 font-bold text-primary-dark">NIM: {user.nim}</p>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <p className="text-[10px] font-bold text-primary-dark">NIM: {user.nim}</p>
+                  <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full border ${
+                    user.role === "global_admin" 
+                      ? "bg-red-100 text-red-700 border-red-300" 
+                      : user.role === "community_admin" 
+                        ? "bg-amber-100 text-amber-700 border-amber-300" 
+                        : "bg-green-100 text-green-700 border-green-300"
+                  }`}>
+                    {getRoleLabel(user.role)}
+                  </span>
+                </div>
               </div>
 
               {/* Navigation Links for Mobile */}
@@ -159,48 +165,6 @@ export default function Navbar() {
                 >
                   👤 Profil Saya
                 </Link>
-              </div>
-
-              {/* RBAC ROLE SIMULATOR SECTION */}
-              <div className="px-4 py-2 bg-slate-50 border-b-2 border-slate-100">
-                <span className="text-[10px] font-extrabold text-text-muted uppercase tracking-wider block mb-1">
-                  Ubah Mode Simulasi (RBAC):
-                </span>
-                <div className="flex flex-col gap-1">
-                  <button
-                    onClick={() => handleRoleChange("mahasiswa")}
-                    className={`w-full text-left px-2 py-1 rounded text-xs font-extrabold border transition-all flex items-center justify-between cursor-pointer ${
-                      user.role === "mahasiswa" 
-                        ? "bg-green-100 border-green-500 text-green-800" 
-                        : "border-slate-200 bg-white hover:bg-slate-100 text-slate-700"
-                    }`}
-                  >
-                    <span>Mahasiswa (User)</span>
-                    {user.role === "mahasiswa" && <span>✓</span>}
-                  </button>
-                  <button
-                    onClick={() => handleRoleChange("community_admin")}
-                    className={`w-full text-left px-2 py-1 rounded text-xs font-extrabold border transition-all flex items-center justify-between cursor-pointer ${
-                      user.role === "community_admin" 
-                        ? "bg-amber-100 border-amber-500 text-amber-800" 
-                        : "border-slate-200 bg-white hover:bg-slate-100 text-slate-700"
-                    }`}
-                  >
-                    <span>Community Admin</span>
-                    {user.role === "community_admin" && <span>✓</span>}
-                  </button>
-                  <button
-                    onClick={() => handleRoleChange("global_admin")}
-                    className={`w-full text-left px-2 py-1 rounded text-xs font-extrabold border transition-all flex items-center justify-between cursor-pointer ${
-                      user.role === "global_admin" 
-                        ? "bg-red-100 border-red-500 text-red-800" 
-                        : "border-slate-200 bg-white hover:bg-slate-100 text-slate-700"
-                    }`}
-                  >
-                    <span>Global Admin</span>
-                    {user.role === "global_admin" && <span>✓</span>}
-                  </button>
-                </div>
               </div>
 
               {/* Actions */}

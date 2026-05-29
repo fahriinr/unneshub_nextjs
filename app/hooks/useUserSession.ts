@@ -149,13 +149,6 @@ export function useUserSession() {
     }
   };
 
-  const updateRole = (newRole: UserRole) => {
-    if (user) {
-      const updated = { ...user, role: newRole };
-      saveUser(updated);
-    }
-  };
-
   return {
     user,
     loading,
@@ -163,6 +156,5 @@ export function useUserSession() {
     signup,
     logout,
     updateProfile,
-    updateRole,
   };
 }

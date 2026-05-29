@@ -58,33 +58,47 @@ export default function JoinCommunityPage() {
           const result = await res.json();
           const data = result.data || result;
           if (Array.isArray(data) && data.length > 0) {
-            const mapped = await Promise.all(data.map(async (c: DBCommunity) => {
-              let isJoined = false;
-              let membersCount = c._count?.members || 0;
-              try {
-                const mRes = await fetch(`/api/communities/${c.id}/members`);
-                if (mRes.ok) {
-                  const mData = await mRes.json();
-                  isJoined = mData.some((m: DBMember) => m.user?.email === user?.email);
-                  membersCount = mData.length;
+            const mapped = await Promise.all(
+              data.map(async (c: DBCommunity) => {
+                let isJoined = false;
+                let membersCount = c._count?.members || 0;
+                try {
+                  const mRes = await fetch(`/api/communities/${c.id}/members`);
+                  if (mRes.ok) {
+                    const mData = await mRes.json();
+                    isJoined = mData.some(
+                      (m: DBMember) => m.user?.email === user?.email,
+                    );
+                    membersCount = mData.length;
+                  }
+                } catch (e) {
+                  console.warn(`Failed to check membership for ${c.id}:`, e);
                 }
-              } catch (e) {
-                console.warn(`Failed to check membership for ${c.id}:`, e);
-              }
 
-              const initials = c.name.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2);
-              const avatarColor = c.category === "AKADEMIK" ? "bg-emerald-700 text-white" : c.category === "HOBI" ? "bg-red-800 text-white" : "bg-indigo-900 text-white";
+                const initials = c.name
+                  .split(" ")
+                  .map((w: string) => w[0])
+                  .join("")
+                  .toUpperCase()
+                  .slice(0, 2);
+                const avatarColor =
+                  c.category === "AKADEMIK"
+                    ? "bg-emerald-700 text-white"
+                    : c.category === "HOBI"
+                      ? "bg-red-800 text-white"
+                      : "bg-indigo-900 text-white";
 
-              return {
-                id: c.id,
-                name: c.name,
-                category: c.category,
-                membersCount,
-                initials,
-                isJoined,
-                avatarColor
-              };
-            }));
+                return {
+                  id: c.id,
+                  name: c.name,
+                  category: c.category,
+                  membersCount,
+                  initials,
+                  isJoined,
+                  avatarColor,
+                };
+              }),
+            );
             setCommunities(mapped);
           }
         }
@@ -132,22 +146,32 @@ export default function JoinCommunityPage() {
 
   const handleJoin = async (communityId: string) => {
     try {
-      const community = communities.find(c => c.id === communityId);
+      const community = communities.find((c) => c.id === communityId);
       if (!community) return;
 
       const isCurrentlyJoined = community.isJoined;
       const endpoint = `/api/communities/${communityId}/join`;
-      
+
       const res = await fetch(endpoint, {
-        method: "POST"
+        method: "POST",
       });
 
       if (res.ok) {
-        triggerToast(isCurrentlyJoined ? `Keluar dari ${community.name}` : `Bergabung ke ${community.name}`);
+        triggerToast(
+          isCurrentlyJoined
+            ? `Keluar dari ${community.name}`
+            : `Bergabung ke ${community.name}`,
+        );
         setCommunities((prev) =>
           prev.map((c) =>
-            c.id === communityId 
-              ? { ...c, isJoined: !c.isJoined, membersCount: c.isJoined ? c.membersCount - 1 : c.membersCount + 1 } 
+            c.id === communityId
+              ? {
+                  ...c,
+                  isJoined: !c.isJoined,
+                  membersCount: c.isJoined
+                    ? c.membersCount - 1
+                    : c.membersCount + 1,
+                }
               : c,
           ),
         );
@@ -248,14 +272,15 @@ export default function JoinCommunityPage() {
 
                 {/* White pill Join button */}
                 <button
+                  disabled={community.isJoined}
                   onClick={(e) => {
                     e.preventDefault();
-                    handleJoin(community.id);
+                    if (!community.isJoined) handleJoin(community.id);
                   }}
-                  className={`text-[10px] font-extrabold px-5 py-1.5 rounded-full border transition-all cursor-pointer shrink-0 ${
+                  className={`text-[10px] font-extrabold px-5 py-1.5 rounded-full border transition-all shrink-0 ${
                     community.isJoined
-                      ? "bg-slate-300 border-transparent text-slate-600 hover:bg-red-50 hover:text-red-600"
-                      : "bg-white border-transparent text-[#0B1E36] hover:bg-slate-50 shadow-sm"
+                      ? "bg-slate-300 border-transparent text-slate-600 cursor-not-allowed opacity-60"
+                      : "bg-white border-transparent text-[#0B1E36] shadow-sm hover:bg-slate-50 hover:shadow-md active:scale-95 cursor-pointer"
                   }`}
                   id={`join-btn-${community.id}`}
                 >
@@ -267,10 +292,10 @@ export default function JoinCommunityPage() {
         </div>
       </div>
 
-      {/* FAB - Yellow Minimalist Circle exactly matching Screen 2 */}
+      {/* FAB - Yellow Minimalist Circle */}
       <Link
         href="/community/create"
-        className="fixed bottom-20 right-5 w-12 h-12 rounded-full bg-[#F2C010] flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95 cursor-pointer z-40"
+        className="sticky bottom-20 ml-auto mr-5 mb-4 w-12 h-12 rounded-full bg-[#F2C010] flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95 cursor-pointer z-40"
         id="fab-create-community"
       >
         <span className="text-2xl font-black text-[#0B1E36] leading-none">
