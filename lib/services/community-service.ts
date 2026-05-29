@@ -3,17 +3,23 @@ import { auth } from "../auth/auth";
 import { headers } from "next/headers";
 import { CreateCommunityInput } from "../validations/community";
 import { CommunityCategory, CommunityStatus, Prisma, UserRole } from "../../app/generated/prisma/client";
+import { cache } from "react";
 
 interface CurrentUserSession {
   id: string;
   role: UserRole;
 }
 
+// Request-level cache to eliminate Session Churn within a single request cycle
+const getSessionCached = cache(async (headersInit: Headers) => {
+  return await auth.api.getSession({
+    headers: headersInit,
+  });
+});
+
 async function getCurrentUserOrNull(): Promise<CurrentUserSession | null> {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
+    const session = await getSessionCached(await headers());
     if (!session || !session.user) return null;
     return {
       id: session.user.id,
@@ -25,9 +31,7 @@ async function getCurrentUserOrNull(): Promise<CurrentUserSession | null> {
 }
 
 async function getAuthenticatedUser() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+  const session = await getSessionCached(await headers());
   if (!session || !session.user) {
     throw new Error("Unauthorized: You must be logged in to perform this action");
   }

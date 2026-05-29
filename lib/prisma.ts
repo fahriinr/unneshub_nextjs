@@ -1,12 +1,35 @@
 import { PrismaClient } from "../app/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
+const globalForPrisma = globalThis as unknown as {
+  prisma?: PrismaClient;
+  pgPool?: Pool;
+};
 
-const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL,
-});
+// 1. Maintain a single connection pooler instance across hot reloads & scaling
+const pool =
+  globalForPrisma.pgPool ||
+  new Pool({
+    connectionString: process.env.DATABASE_URL,
+    max: 4,                  // Prevent Supabase Pooler port exhaustion
+    idleTimeoutMillis: 15000, // Release connections quickly on idle functions
+    connectionTimeoutMillis: 2000,
+  });
 
-export const prisma = globalForPrisma.prisma || new PrismaClient({ adapter });
+if (process.env.NODE_ENV !== "production") {
+  globalForPrisma.pgPool = pool;
+}
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+const adapter = new PrismaPg(pool);
+
+// 2. Singleton PrismaClient instance
+export const prisma =
+  globalForPrisma.prisma ||
+  new PrismaClient({
+    adapter,
+  });
+
+if (process.env.NODE_ENV !== "production") {
+  globalForPrisma.prisma = prisma;
+}
