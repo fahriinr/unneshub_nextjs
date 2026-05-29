@@ -62,7 +62,9 @@ export default function JoinCommunityPage() {
       const data = result.data || result;
       if (!Array.isArray(data)) return [];
 
-      return data.map((c: any) => {
+      const approvedCommunities = data.filter((c: any) => c.status === "APPROVED");
+
+      return approvedCommunities.map((c: any) => {
         const initials = c.name
           .split(" ")
           .map((w: string) => w[0])

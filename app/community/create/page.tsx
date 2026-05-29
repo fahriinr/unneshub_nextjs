@@ -4,10 +4,12 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useUserSession } from "../../hooks/useUserSession";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function CreateCommunityPage() {
   const router = useRouter();
   const { user, loading } = useUserSession();
+  const queryClient = useQueryClient();
 
   // Form states
   const [name, setName] = useState("");
@@ -101,6 +103,8 @@ export default function CreateCommunityPage() {
         throw new Error(err.error || "Gagal membuat komunitas");
       }
 
+      queryClient.invalidateQueries({ queryKey: ["myCommunities"] });
+      router.refresh();
       setSuccessToast("Komunitas berhasil dibuat! Sedang ditinjau oleh Admin ⏳🎉");
       setTimeout(() => {
         router.push("/");
