@@ -28,6 +28,7 @@ interface PostItem {
   commentsCount: number;
   isLiked?: boolean;
   isPinned?: boolean;
+  canEdit?: boolean;
   imageUrl?: string;
   event?: {
     title: string;
@@ -91,6 +92,10 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
   const [showMenuModal, setShowMenuModal] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [leavingCommunity, setLeavingCommunity] = useState(false);
+
+  // Edit post states
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [editPostText, setEditPostText] = useState("");
 
   // Route protection
   useEffect(() => {
@@ -189,7 +194,8 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
             isAnonymous: post.isAnonymous,
             likes: post._count?.likes || 0,
             commentsCount: post._count?.comments || 0,
-            isLiked: false, // will be updated when liked
+            isLiked: post.likedByCurrentUser || false,
+            canEdit: post.permissions?.canEdit || false,
             imageUrl: post.imageUrl || undefined,
           };
         });
@@ -333,6 +339,35 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
       } else {
         const err = await res.json();
         triggerToast(err.error || "Gagal menghapus postingan");
+      }
+    } catch (err) {
+      console.error(err);
+      triggerToast("Gagal menghubungi server.");
+    }
+  };
+
+  // Edit post handler
+  const handleEditPost = async (postId: string) => {
+    if (!editPostText.trim()) return;
+    try {
+      const res = await fetch(`/api/posts/${postId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: editPostText.trim() }),
+      });
+      if (res.ok) {
+        setPosts(prev => prev.map(p => {
+          if (p.id === postId) {
+            return { ...p, content: editPostText.trim() };
+          }
+          return p;
+        }));
+        setEditingPostId(null);
+        setEditPostText("");
+        triggerToast("Postingan berhasil diperbarui!");
+      } else {
+        const err = await res.json();
+        triggerToast(err.error || "Gagal memperbarui postingan");
       }
     } catch (err) {
       console.error(err);
@@ -793,11 +828,17 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
             <form onSubmit={handleCreatePost} className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col gap-3 shadow-sm">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  {/* Gray Avatar circle */}
-                  <div className="w-8 h-8 rounded-full bg-slate-200 border border-slate-300 flex items-center justify-center font-extrabold text-xs text-slate-500 shrink-0">
-                    {user.name.charAt(0).toUpperCase()}
+                  {/* Avatar circle - changes based on anonymous toggle */}
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-extrabold text-xs shrink-0 ${
+                    isAnonymous
+                      ? "bg-slate-600 text-white border border-slate-500"
+                      : "bg-[#F2C010] text-[#0B1E36] border border-amber-300"
+                  }`}>
+                    {isAnonymous ? "?" : user.name.charAt(0).toUpperCase()}
                   </div>
-                  <span className="text-xs font-extrabold text-[#0B1E36]">Anonymous</span>
+                  <span className="text-xs font-extrabold text-[#0B1E36]">
+                    {isAnonymous ? "Anonymous" : user.name}
+                  </span>
                 </div>
 
                 {/* Interactive Toggle matching Screen 1/2 */}
@@ -888,13 +929,27 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
                           </div>
                         </div>
 
-                        {/* Top Right Controls (Pin / Delete 🗑️) matching Screen 3 */}
+                        {/* Top Right Controls */}
                         <div className="flex items-center gap-2">
                           {/* Pinned badge */}
                           {post.isPinned && (
                             <span className="text-[9px] font-black text-yellow-600 bg-yellow-100 px-1.5 py-0.5 rounded border border-yellow-300">
                               📌 Sematan
                             </span>
+                          )}
+
+                          {/* Edit button for post owner */}
+                          {post.canEdit && (
+                            <button
+                              onClick={() => {
+                                setEditingPostId(post.id);
+                                setEditPostText(post.content);
+                              }}
+                              className="p-1 hover:bg-blue-100 rounded text-blue-600 transition-colors cursor-pointer"
+                              title="Edit Post"
+                            >
+                              ✏️
+                            </button>
                           )}
                           
                           {/* Admin tools */}
@@ -921,10 +976,37 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
                         </div>
                       </div>
 
-                      {/* Content Text exactly matching Screen 1/2 */}
-                      <div className="text-xs font-semibold text-[#0C0A09] leading-relaxed whitespace-pre-line pr-2 font-mono">
-                        {post.content}
-                      </div>
+                      {/* Content Text - or inline edit mode */}
+                      {editingPostId === post.id ? (
+                        <div className="flex flex-col gap-2">
+                          <textarea
+                            value={editPostText}
+                            onChange={(e) => setEditPostText(e.target.value)}
+                            className="w-full min-h-[60px] py-2 px-3 text-xs font-bold text-[#0B1E36] outline-none resize-none border border-slate-200 rounded-xl bg-white"
+                            maxLength={1000}
+                          />
+                          <div className="flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => { setEditingPostId(null); setEditPostText(""); }}
+                              className="px-3 py-1 text-[10px] font-extrabold text-slate-500 hover:text-[#0B1E36] rounded-lg transition-colors cursor-pointer"
+                            >
+                              Batal
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleEditPost(post.id)}
+                              className="px-4 py-1 bg-[#0B1E36] text-white text-[10px] font-extrabold rounded-lg shadow-sm hover:bg-black transition-all cursor-pointer"
+                            >
+                              Simpan
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-xs font-semibold text-[#0C0A09] leading-relaxed whitespace-pre-line pr-2 font-mono">
+                          {post.content}
+                        </div>
+                      )}
 
                       {/* Mock grid Screenshot image attachments exactly matching Screen 3 */}
                       {(post.imageUrl || post.id === "post-ti-1") && (

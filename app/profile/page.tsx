@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useUserSession } from "../hooks/useUserSession";
 import { ProfileSkeleton } from "../components/Skeleton";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 const FAKULTAS_LIST = [
   "FMIPA (Fakultas Matematika dan Ilmu Pengetahuan Alam)",
@@ -17,27 +17,12 @@ const FAKULTAS_LIST = [
   "FIK (Fakultas Ilmu Keolahragaan)",
 ];
 
-export interface CommunityDetails {
-  id: string;
-  name: string;
-  category: string;
-}
-
-export interface PostItem {
-  id: string;
-  content: string;
-}
-
 export default function ProfilePage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user, loading, updateProfile, logout } = useUserSession();
   const [isEditing, setIsEditing] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-
-  // Stats from Database APIs (with fallback defaults)
-  const [joinedCount, setJoinedCount] = useState(5);
-  const [postsCount, setPostsCount] = useState(23);
-  const [adminCount, setAdminCount] = useState(2);
 
   // Form states
   const [editName, setEditName] = useState("");
@@ -48,40 +33,6 @@ export default function ProfilePage() {
   const [formError, setFormError] = useState("");
   const [successToast, setSuccessToast] = useState("");
 
-  const [prevUser, setPrevUser] = useState<any>(null);
-
-  // Sync state with user session data
-  if (user && user !== prevUser) {
-    setPrevUser(user);
-    setEditName(user.name || "");
-    setEditNim(user.nim || "");
-    setEditFakultas(user.fakultas || "");
-    setEditMinat(user.minat || []);
-  }
-
-  // Optimized profile stats fetching with TanStack Query caching
-  const { data: profileStats } = useQuery({
-    queryKey: ["profileStats", user?.email],
-    queryFn: async () => {
-      const res = await fetch("/api/profile");
-      if (!res.ok) throw new Error("Gagal mengambil data profil");
-      const profileData = await res.json();
-      
-      const joined = profileData.memberships?.length || 0;
-      const posts = profileData.posts?.length || 0;
-      const admin = (profileData.memberships?.filter((m: any) => m.role === "ADMIN")?.length || 0) + (profileData.createdCommunities?.length || 0);
-
-      return { joined, posts, admin };
-    },
-    enabled: !!user?.isLoggedIn,
-    staleTime: 1000 * 60 * 5, // Cache stats for 5 minutes
-  });
-
-  // Apply real counts if available, otherwise use state values
-  const finalJoinedCount = profileStats?.joined ?? joinedCount;
-  const finalPostsCount = profileStats?.posts ?? postsCount;
-  const finalAdminCount = profileStats?.admin ?? adminCount;
-
   // Route protection
   useEffect(() => {
     if (!loading && (!user || !user.isLoggedIn)) {
@@ -89,7 +40,46 @@ export default function ProfilePage() {
     }
   }, [user, loading, router]);
 
-  if (loading || !user) {
+  // Fetch real profile from DB
+  const { data: profileData, isLoading: isLoadingProfile } = useQuery({
+    queryKey: ["profile", user?.email],
+    queryFn: async () => {
+      const res = await fetch("/api/profile");
+      if (!res.ok) throw new Error("Gagal mengambil data profil");
+      return await res.json();
+    },
+    enabled: !!user?.isLoggedIn,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  // Derive profile fields from DB data
+  const dbName = profileData?.name || user?.name || "";
+  const dbEmail = profileData?.email || user?.email || "";
+  const dbNim = profileData?.nim || "";
+  const dbFakultas = profileData?.fakultas || "";
+  const dbImage = profileData?.image || null;
+
+  // Stats from DB
+  const joinedCount = profileData?.memberships?.length || 0;
+  const postsCount = profileData?.posts?.length || 0;
+  const adminCount =
+    (profileData?.memberships?.filter((m: any) => m.role === "ADMIN")?.length || 0) +
+    (profileData?.createdCommunities?.length || 0);
+
+  // Sync form state when profile data loads
+  const [initializedFrom, setInitializedFrom] = useState<string | null>(null);
+  useEffect(() => {
+    const profileId = profileData?.id;
+    if (profileId && profileId !== initializedFrom) {
+      setInitializedFrom(profileId);
+      setEditName(dbName);
+      setEditNim(dbNim);
+      setEditFakultas(dbFakultas);
+      setEditMinat(user?.minat || []);
+    }
+  }, [profileData, dbName, dbNim, dbFakultas, initializedFrom, user?.minat]);
+
+  if (loading || !user || isLoadingProfile) {
     return <ProfileSkeleton />;
   }
 
@@ -100,12 +90,10 @@ export default function ProfilePage() {
   };
 
   const handleCancel = () => {
-    if (user) {
-      setEditName(user.name || "");
-      setEditNim(user.nim || "");
-      setEditFakultas(user.fakultas || "");
-      setEditMinat(user.minat || []);
-    }
+    setEditName(dbName);
+    setEditNim(dbNim);
+    setEditFakultas(dbFakultas);
+    setEditMinat(user?.minat || []);
     setIsEditing(false);
   };
 
@@ -119,14 +107,13 @@ export default function ProfilePage() {
     }
 
     try {
-      // 1. Save core attributes in the database
       const res = await fetch("/api/profile", {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: editName.trim(),
+          nim: editNim.trim(),
+          fakultas: editFakultas,
           prodi: user.prodi || "",
           angkatan: user.angkatan || "",
         }),
@@ -134,34 +121,25 @@ export default function ProfilePage() {
 
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "Gagal memperbarui database profile");
+        throw new Error(err.error || "Gagal memperbarui profil");
       }
 
-      // 2. Save hybrid offline attributes in Session state
+      // Update local session state
       updateProfile({
         name: editName.trim(),
         nim: editNim.trim(),
         fakultas: editFakultas,
         minat: editMinat,
       });
+
+      // Invalidate profile cache to refetch fresh data
+      queryClient.invalidateQueries({ queryKey: ["profile"] });
 
       setSuccessToast("Profil berhasil diperbarui! 🎉");
       setTimeout(() => setSuccessToast(""), 3000);
       setIsEditing(false);
     } catch (err: any) {
-      console.warn("DB Patch failed, updating session only:", err);
-      
-      // Fallback update session only
-      updateProfile({
-        name: editName.trim(),
-        nim: editNim.trim(),
-        fakultas: editFakultas,
-        minat: editMinat,
-      });
-
-      setSuccessToast("Profil diperbarui! 🎉");
-      setTimeout(() => setSuccessToast(""), 3000);
-      setIsEditing(false);
+      setFormError(err.message || "Gagal memperbarui profil");
     }
   };
 
@@ -179,7 +157,7 @@ export default function ProfilePage() {
     setEditMinat(editMinat.filter((tag) => tag !== tagToRemove));
   };
 
-  const avatarInitial = (user.name || "F").charAt(0).toUpperCase();
+  const avatarInitial = (dbName || "F").charAt(0).toUpperCase();
 
   return (
     <div className="flex-1 w-full bg-[#FDFBF7] flex flex-col min-h-screen relative font-sans">
@@ -190,7 +168,7 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* Navy Header Block exactly matching Image 3 */}
+      {/* Navy Header Block */}
       <div className="relative bg-[#0B1E36] pt-12 pb-8 px-6 text-center text-white shrink-0 shadow-md">
         {/* Edit Pill Button in top right */}
         <button
@@ -221,38 +199,38 @@ export default function ProfilePage() {
               className="w-full text-center bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-sm font-extrabold text-white outline-none focus:bg-white/20"
               placeholder="Nama"
             />
-            <p className="text-[10px] text-slate-400 mt-1 select-none leading-none">{user.email}</p>
+            <p className="text-[10px] text-slate-400 mt-1 select-none leading-none">{dbEmail}</p>
           </div>
         ) : (
           <>
-            <h1 className="text-xl font-extrabold tracking-tight leading-snug">{user.name}</h1>
-            <p className="text-xs font-semibold text-slate-300 mt-1 select-none leading-none">{user.email}</p>
+            <h1 className="text-xl font-extrabold tracking-tight leading-snug">{dbName}</h1>
+            <p className="text-xs font-semibold text-slate-300 mt-1 select-none leading-none">{dbEmail}</p>
           </>
         )}
 
-        {/* Stat Row exactly matching Image 3 */}
+        {/* Stat Row */}
         <div className="flex items-center justify-center gap-6 mt-6 pt-4 border-t border-white/10 text-xs font-extrabold text-white select-none">
           <div className="flex flex-col items-center">
-            <span className="text-lg font-black text-[#F2C010]">{finalJoinedCount}</span>
+            <span className="text-lg font-black text-[#F2C010]">{joinedCount}</span>
             <span className="text-[9px] font-bold text-slate-300 uppercase mt-0.5 leading-none">Komunitas</span>
           </div>
           <div className="w-px h-8 bg-white/20"></div>
           <div className="flex flex-col items-center">
-            <span className="text-lg font-black text-[#F2C010]">{finalPostsCount}</span>
+            <span className="text-lg font-black text-[#F2C010]">{postsCount}</span>
             <span className="text-[9px] font-bold text-slate-300 uppercase mt-0.5 leading-none">Postingan</span>
           </div>
           <div className="w-px h-8 bg-white/20"></div>
           <div className="flex flex-col items-center">
-            <span className="text-lg font-black text-[#F2C010]">{finalAdminCount}</span>
+            <span className="text-lg font-black text-[#F2C010]">{adminCount}</span>
             <span className="text-[9px] font-bold text-slate-300 uppercase mt-0.5 leading-none">Admin</span>
           </div>
         </div>
       </div>
 
-      {/* Surface Grey Card Area exactly matching Image 3 */}
+      {/* Surface Grey Card Area */}
       <div className="flex-1 bg-[#E2E5E9]/75 border-t border-slate-200/50 rounded-t-3xl -mt-4 px-5 py-6 flex flex-col gap-5 shadow-inner">
         {showLogoutConfirm ? (
-          /* Logout confirmation view overlay inside the grey card */
+          /* Logout confirmation view */
           <div className="bg-white border border-slate-200/50 rounded-2xl p-6 shadow-md text-center flex flex-col gap-4 animate-in zoom-in-95 duration-200 mt-4">
             <p className="text-xs font-black text-[#0B1E36] leading-relaxed">
               Anda yakin ingin keluar dari akun ?
@@ -275,7 +253,7 @@ export default function ProfilePage() {
         ) : (
           /* Standard fields list */
           <>
-            {/* NIM Field Container */}
+            {/* NIM Field */}
             <div className="flex flex-col gap-2">
               <label className="text-[9px] font-black text-slate-600 uppercase tracking-wider pl-1 select-none">NIM</label>
               {isEditing ? (
@@ -288,12 +266,12 @@ export default function ProfilePage() {
                 />
               ) : (
                 <div className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-[#0B1E36] shadow-sm select-text">
-                  {user.nim || "Belum diisi"}
+                  {dbNim || "Belum diisi"}
                 </div>
               )}
             </div>
 
-            {/* Fakultas Field Container */}
+            {/* Fakultas Field */}
             <div className="flex flex-col gap-2">
               <label className="text-[9px] font-black text-slate-600 uppercase tracking-wider pl-1 select-none">Fakultas</label>
               {isEditing ? (
@@ -311,12 +289,12 @@ export default function ProfilePage() {
                 </select>
               ) : (
                 <div className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-[#0B1E36] leading-relaxed shadow-sm select-text">
-                  {user.fakultas || "Belum diisi"}
+                  {dbFakultas || "Belum diisi"}
                 </div>
               )}
             </div>
 
-            {/* Minat Tags Field Container */}
+            {/* Minat Tags Field */}
             <div className="flex flex-col gap-2">
               <label className="text-[9px] font-black text-slate-600 uppercase tracking-wider pl-1 select-none">Minat</label>
               
@@ -368,14 +346,14 @@ export default function ProfilePage() {
               </div>
             )}
 
-            {/* Red Action Button at bottom */}
+            {/* Action Button */}
             <div className="mt-4 pb-24 shrink-0">
               {isEditing ? (
                 <button
                   onClick={handleSave}
-                  className="w-full py-3.5 bg-[#EF4444] text-white font-extrabold text-xs rounded-xl shadow-md hover:bg-red-600 active:scale-99 transition-all cursor-pointer text-center select-none uppercase tracking-wide"
+                  className="w-full py-3.5 bg-[#0B1E36] text-white font-extrabold text-xs rounded-xl shadow-md hover:bg-black active:scale-99 transition-all cursor-pointer text-center select-none uppercase tracking-wide"
                 >
-                  Edit Profil
+                  Simpan Perubahan
                 </button>
               ) : (
                 <button

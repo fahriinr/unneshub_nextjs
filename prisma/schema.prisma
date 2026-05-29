@@ -47,6 +47,8 @@ model User {
   email         String   @unique
   emailVerified Boolean  @map("email_verified")
   image         String?
+  nim           String?
+  fakultas      String?
   prodi         String?
   angkatan      Int?
   role          UserRole @default(MAHASISWA)

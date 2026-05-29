@@ -15,6 +15,16 @@ export const updateProfileSchema = z.object({
     .url("Invalid profile image URL format")
     .optional()
     .or(z.literal("")),
+  nim: z
+    .string()
+    .max(20, "NIM cannot exceed 20 characters")
+    .optional()
+    .or(z.literal("")),
+  fakultas: z
+    .string()
+    .max(100, "Fakultas cannot exceed 100 characters")
+    .optional()
+    .or(z.literal("")),
   prodi: z
     .string()
     .max(100, "Program studi cannot exceed 100 characters")

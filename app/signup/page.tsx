@@ -63,6 +63,21 @@ export default function SignupPage() {
       return;
     }
 
+    // Persist nim & fakultas to DB
+    try {
+      await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          nim: nim.trim(),
+          fakultas,
+        }),
+      });
+    } catch {
+      // Non-blocking — profile fields can be updated later
+    }
+
     // Auto-login the user into local session state
     signup({
       name: name.trim(),

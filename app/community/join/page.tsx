@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useUserSession } from "../../hooks/useUserSession";
@@ -17,12 +17,23 @@ interface CommunityListItem {
   avatarColor: string;
 }
 
+function useDebounce(value: string, delay: number) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debouncedValue;
+}
+
 export default function JoinCommunityPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user, loading } = useUserSession();
   const [search, setSearch] = useState("");
   const [successToast, setSuccessToast] = useState("");
+
+  const debouncedSearch = useDebounce(search, 300);
 
   const triggerToast = (msg: string) => {
     setSuccessToast(msg);
@@ -36,11 +47,16 @@ export default function JoinCommunityPage() {
     }
   }, [user, loading, router]);
 
-  // Optimized communities fetching with caching to eliminate lag
+  // Optimized communities fetching with server-side search
   const { data: communities = [], isLoading: isFetchingCommunities } = useQuery({
-    queryKey: ["communities", user?.email],
+    queryKey: ["communities", user?.email, debouncedSearch],
     queryFn: async () => {
-      const res = await fetch("/api/communities");
+      const params = new URLSearchParams();
+      if (debouncedSearch.trim()) {
+        params.set("search", debouncedSearch.trim());
+      }
+      const url = `/api/communities${params.toString() ? `?${params}` : ""}`;
+      const res = await fetch(url);
       if (!res.ok) throw new Error("Gagal mengambil data komunitas");
       const result = await res.json();
       const data = result.data || result;
@@ -74,16 +90,12 @@ export default function JoinCommunityPage() {
       });
     },
     enabled: !!user?.isLoggedIn,
-    staleTime: 1000 * 60 * 5, // Cache lists for 5 minutes
+    staleTime: 1000 * 60 * 5,
   });
 
-  if (loading || !user || (isFetchingCommunities && communities.length === 0)) {
+  if (loading || !user || (isFetchingCommunities && communities.length === 0 && !debouncedSearch)) {
     return <JoinSkeleton />;
   }
-
-  const filteredCommunities = communities.filter((c) =>
-    c.name.toLowerCase().includes(search.toLowerCase()),
-  );
 
   const handleJoin = async (communityId: string) => {
     try {
@@ -104,9 +116,9 @@ export default function JoinCommunityPage() {
             : `Bergabung ke ${community.name}`,
         );
         
-        // Invalidate queries to instantly update caches and keep lists perfectly in sync
-        queryClient.invalidateQueries({ queryKey: ["communities", user?.email] });
-        queryClient.invalidateQueries({ queryKey: ["myCommunities", user?.email] });
+        // Invalidate queries to instantly update caches
+        queryClient.invalidateQueries({ queryKey: ["communities"] });
+        queryClient.invalidateQueries({ queryKey: ["myCommunities"] });
       } else {
         const err = await res.json();
         triggerToast(err.error || "Gagal mengubah keanggotaan");
@@ -126,23 +138,13 @@ export default function JoinCommunityPage() {
         </div>
       )}
 
-      {/* Dark Navy Header Banner matching Screen 2
-      <div className="bg-[#0B1E36] px-4 py-4 flex items-center justify-between w-full shadow-sm">
-        <span className="text-white font-black text-xl tracking-tight">UnnesHub</span>
-        <button className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md">
-          <svg className="w-4.5 h-4.5 text-[#0B1E36]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a9.041 9.041 0 01-3.185 0M17 11V7a5 5 0 00-7-4.887A5.006 5.006 0 005 7v4a5.986 5.986 0 01-.294 1.828l-1.005 3.013c-.115.346.124.694.487.694h13.624c.363 0 .602-.348.487-.694l-1.005-3.013a5.986 5.986 0 01-.294-1.828z" />
-          </svg>
-        </button>
-      </div> */}
-
       {/* Screen Title & Search Block */}
       <div className="px-4 pt-6 pb-4 w-full">
         <h1 className="text-xl font-extrabold text-[#0B1E36] tracking-tight mb-4">
           Join Komunitas
         </h1>
 
-        {/* Gray Rounded Search Input Box matching Screen 2 */}
+        {/* Search Input with server-side search */}
         <div className="relative">
           <svg
             className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8FA0AF]"
@@ -162,23 +164,34 @@ export default function JoinCommunityPage() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search communities..."
+            placeholder="Cari komunitas..."
             className="w-full pl-10 pr-4 py-2.5 bg-[#E2E5E9] rounded-xl text-xs font-bold text-[#0B1E36] outline-none placeholder-[#8FA0AF] transition-all"
           />
+          {/* Loading indicator for search */}
+          {isFetchingCommunities && debouncedSearch && (
+            <div className="absolute right-3.5 top-1/2 -translate-y-1/2">
+              <svg className="animate-spin h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Community List exactly matching Screen 2 */}
+      {/* Community List */}
       <div className="flex-1 px-4 w-full pb-24">
         <div className="flex flex-col gap-3">
-          {filteredCommunities.length === 0 ? (
+          {communities.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-xs font-bold text-slate-400">
-                Tidak ada komunitas yang ditemukan.
+                {debouncedSearch
+                  ? `Tidak ada komunitas untuk "${debouncedSearch}"`
+                  : "Tidak ada komunitas yang ditemukan."}
               </p>
             </div>
           ) : (
-            filteredCommunities.map((community) => (
+            communities.map((community) => (
               <Link
                 key={community.id}
                 href={`/community/${community.id}`}

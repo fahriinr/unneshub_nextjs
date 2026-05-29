@@ -115,6 +115,8 @@ export async function updateProfile(id: string, data: UpdateProfileInput) {
     data: {
       name: data.name,
       image: data.profileImage !== undefined ? (data.profileImage || null) : undefined,
+      nim: data.nim !== undefined ? (data.nim || null) : undefined,
+      fakultas: data.fakultas !== undefined ? (data.fakultas || null) : undefined,
       prodi: data.prodi !== undefined ? (data.prodi || null) : undefined,
       angkatan: angkatanVal,
     },
