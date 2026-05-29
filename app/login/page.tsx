@@ -5,42 +5,53 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth/auth-client";
 import { loginSchema } from "@/lib/validations/auth";
+import { useUserSession } from "../hooks/useUserSession";
+import { useMutation } from "@tanstack/react-query";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login } = useUserSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const loginMutation = useMutation({
+    mutationFn: async () => {
+      const result = loginSchema.safeParse({ email: email.trim(), password });
+      if (!result.success) {
+        throw new Error(result.error.issues[0].message);
+      }
+
+      const { error: authError } = await authClient.signIn.email({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+
+      if (authError) {
+        throw new Error(
+          authError.message || "Login gagal. Periksa email dan password Anda.",
+        );
+      }
+
+      return email.trim().toLowerCase();
+    },
+    onSuccess: (activeEmail) => {
+      login(activeEmail);
+      router.push("/");
+      router.refresh();
+    },
+    onError: (err: any) => {
+      setError(err.message);
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setLoading(true);
-
-    const result = loginSchema.safeParse({ email: email.trim(), password });
-    if (!result.success) {
-      setError(result.error.issues[0].message);
-      setLoading(false);
-      return;
-    }
-
-    const { error: authError } = await authClient.signIn.email({
-      email: email.trim().toLowerCase(),
-      password,
-    });
-
-    if (authError) {
-      setError(
-        authError.message || "Login gagal. Periksa email dan password Anda.",
-      );
-      setLoading(false);
-      return;
-    }
-
-    router.push("/");
-    router.refresh();
+    loginMutation.mutate();
   };
+
+  const loading = loginMutation.isPending;
 
   return (
     <div className="flex-1 min-h-screen bg-[#0B1E36] flex flex-col items-center justify-center p-6">

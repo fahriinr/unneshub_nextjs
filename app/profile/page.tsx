@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useUserSession } from "../hooks/useUserSession";
+import { ProfileSkeleton } from "../components/Skeleton";
+import { useQuery } from "@tanstack/react-query";
 
 const FAKULTAS_LIST = [
   "FMIPA (Fakultas Matematika dan Ilmu Pengetahuan Alam)",
@@ -32,10 +34,10 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  // Stats from Database APIs
-  const [joinedCount, setJoinedCount] = useState(5); // default mock / fallback
-  const [postsCount, setPostsCount] = useState(23); // default mock / fallback
-  const [adminCount, setAdminCount] = useState(2); // default mock / fallback
+  // Stats from Database APIs (with fallback defaults)
+  const [joinedCount, setJoinedCount] = useState(5);
+  const [postsCount, setPostsCount] = useState(23);
+  const [adminCount, setAdminCount] = useState(2);
 
   // Form states
   const [editName, setEditName] = useState("");
@@ -57,31 +59,28 @@ export default function ProfilePage() {
     setEditMinat(user.minat || []);
   }
 
-  // Fetch real profile and stats from database API
-  useEffect(() => {
-    async function fetchRealProfile() {
-      try {
-        const res = await fetch("/api/profile");
-        if (res.ok) {
-          const profileData = await res.json();
-          // Calculate counts
-          const joined = profileData.memberships?.length || 0;
-          const posts = profileData.posts?.length || 0;
-          const admin = (profileData.memberships?.filter((m: any) => m.role === "ADMIN")?.length || 0) + (profileData.createdCommunities?.length || 0);
+  // Optimized profile stats fetching with TanStack Query caching
+  const { data: profileStats } = useQuery({
+    queryKey: ["profileStats", user?.email],
+    queryFn: async () => {
+      const res = await fetch("/api/profile");
+      if (!res.ok) throw new Error("Gagal mengambil data profil");
+      const profileData = await res.json();
+      
+      const joined = profileData.memberships?.length || 0;
+      const posts = profileData.posts?.length || 0;
+      const admin = (profileData.memberships?.filter((m: any) => m.role === "ADMIN")?.length || 0) + (profileData.createdCommunities?.length || 0);
 
-          setJoinedCount(joined);
-          setPostsCount(posts);
-          setAdminCount(admin);
-        }
-      } catch (err) {
-        console.warn("Failed to fetch real profile data, using session counts:", err);
-      }
-    }
+      return { joined, posts, admin };
+    },
+    enabled: !!user?.isLoggedIn,
+    staleTime: 1000 * 60 * 5, // Cache stats for 5 minutes
+  });
 
-    if (user?.isLoggedIn) {
-      fetchRealProfile();
-    }
-  }, [user]);
+  // Apply real counts if available, otherwise use state values
+  const finalJoinedCount = profileStats?.joined ?? joinedCount;
+  const finalPostsCount = profileStats?.posts ?? postsCount;
+  const finalAdminCount = profileStats?.admin ?? adminCount;
 
   // Route protection
   useEffect(() => {
@@ -91,17 +90,7 @@ export default function ProfilePage() {
   }, [user, loading, router]);
 
   if (loading || !user) {
-    return (
-      <div className="flex-1 flex items-center justify-center p-8 bg-[#FDFBF7]">
-        <div className="text-center font-bold text-[#0B1E36]">
-          <svg className="animate-spin h-8 w-8 mx-auto mb-4 text-[#0B1E36]" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-          Memuat data profil...
-        </div>
-      </div>
-    );
+    return <ProfileSkeleton />;
   }
 
   // Handle Logout Confirmation
@@ -244,17 +233,17 @@ export default function ProfilePage() {
         {/* Stat Row exactly matching Image 3 */}
         <div className="flex items-center justify-center gap-6 mt-6 pt-4 border-t border-white/10 text-xs font-extrabold text-white select-none">
           <div className="flex flex-col items-center">
-            <span className="text-lg font-black text-[#F2C010]">{joinedCount}</span>
+            <span className="text-lg font-black text-[#F2C010]">{finalJoinedCount}</span>
             <span className="text-[9px] font-bold text-slate-300 uppercase mt-0.5 leading-none">Komunitas</span>
           </div>
           <div className="w-px h-8 bg-white/20"></div>
           <div className="flex flex-col items-center">
-            <span className="text-lg font-black text-[#F2C010]">{postsCount}</span>
+            <span className="text-lg font-black text-[#F2C010]">{finalPostsCount}</span>
             <span className="text-[9px] font-bold text-slate-300 uppercase mt-0.5 leading-none">Postingan</span>
           </div>
           <div className="w-px h-8 bg-white/20"></div>
           <div className="flex flex-col items-center">
-            <span className="text-lg font-black text-[#F2C010]">{adminCount}</span>
+            <span className="text-lg font-black text-[#F2C010]">{finalAdminCount}</span>
             <span className="text-[9px] font-bold text-slate-300 uppercase mt-0.5 leading-none">Admin</span>
           </div>
         </div>

@@ -13,7 +13,7 @@ export default function SignupSuccessPage() {
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          router.push("/login");
+          router.push("/");
           return 0;
         }
         return prev - 1;
@@ -50,14 +50,14 @@ export default function SignupSuccessPage() {
             Akun anda berhasil terdaftar.
           </h2>
           <p className="text-xs font-semibold text-[#8FA0AF] mb-6">
-            Silakan login untuk mulai bergabung dengan komunitas kampus UNNES.
+            Akun Anda telah aktif dan siap digunakan. Selamat bergabung!
           </p>
 
           <Link
-            href="/login"
+            href="/"
             className="neo-button-yellow w-full py-3 text-sm font-black"
           >
-            Masuk Sekarang
+            Mulai Sekarang
           </Link>
 
           <p className="text-[11px] font-semibold text-[#8FA0AF] mt-4">

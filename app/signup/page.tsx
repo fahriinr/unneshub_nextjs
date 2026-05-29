@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth/auth-client";
 import { signupSchema } from "@/lib/validations/auth";
+import { useUserSession } from "../hooks/useUserSession";
 
 const FAKULTAS_LIST = [
   "FMIPA (Fakultas Matematika & Ilmu Pengetahuan Alam)",
@@ -19,6 +20,7 @@ const FAKULTAS_LIST = [
 
 export default function SignupPage() {
   const router = useRouter();
+  const { signup } = useUserSession();
   const [name, setName] = useState("");
   const [nim, setNim] = useState("");
   const [email, setEmail] = useState("");
@@ -60,6 +62,16 @@ export default function SignupPage() {
       setLoading(false);
       return;
     }
+
+    // Auto-login the user into local session state
+    signup({
+      name: name.trim(),
+      nim: nim,
+      email: email.trim().toLowerCase(),
+      fakultas: fakultas,
+      role: "mahasiswa",
+      isLoggedIn: true,
+    });
 
     router.push("/signup/success");
   };

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useUserSession } from "./hooks/useUserSession";
 import { useEffect, useState } from "react";
 import { authClient } from "@/lib/auth/auth-client";
+import { HomeSkeleton } from "./components/Skeleton";
+import { useQuery } from "@tanstack/react-query";
 
 interface CommunityItem {
   id: string;
@@ -37,7 +39,6 @@ export default function Home() {
     name: string;
     email: string;
   } | null>(null);
-  const [myCommunities, setMyCommunities] = useState<CommunityItem[]>([]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -65,108 +66,76 @@ export default function Home() {
   }, [mounted]);
 
   const isLoggedIn = (user && user.isLoggedIn) || !!sessionUser;
+  const activeEmail = sessionUser?.email || user?.email;
 
-  // Fetch joined communities from database APIs
-  useEffect(() => {
-    async function fetchMyCommunities() {
-      const activeEmail = sessionUser?.email || user?.email;
-      if (!activeEmail) return;
+  // Optimized joined communities fetching with caching to eliminate lag
+  const { data: myCommunities = [], isLoading: isFetchingCommunities } = useQuery({
+    queryKey: ["myCommunities", activeEmail],
+    queryFn: async () => {
+      if (!activeEmail) return [];
 
-      try {
-        const res = await fetch("/api/communities");
-        if (res.ok) {
-          const result = await res.json();
-          const data = result.data || result;
-          if (Array.isArray(data)) {
-            const mapped = await Promise.all(
-              data.map(async (c: DBCommunity) => {
-                try {
-                  const mRes = await fetch(`/api/communities/${c.id}/members`);
-                  if (mRes.ok) {
-                    const mData = await mRes.json();
-                    const userMembership = mData.find(
-                      (m: DBMember) => m.user?.email === activeEmail,
-                    );
+      const res = await fetch("/api/communities");
+      if (!res.ok) throw new Error("Gagal mengambil data komunitas");
+      
+      const result = await res.json();
+      const data = result.data || result;
+      if (!Array.isArray(data)) return [];
 
-                    if (userMembership) {
-                      const initials = c.name
-                        .split(" ")
-                        .map((w: string) => w[0])
-                        .join("")
-                        .toUpperCase()
-                        .slice(0, 2);
+      const mapped = await Promise.all(
+        data.map(async (c: DBCommunity) => {
+          try {
+            const mRes = await fetch(`/api/communities/${c.id}/members`);
+            if (mRes.ok) {
+              const mData = await mRes.json();
+              const userMembership = mData.find(
+                (m: DBMember) => m.user?.email === activeEmail,
+              );
 
-                      const avatarColorMap: Record<string, string> = {
-                        AKADEMIK: "bg-emerald-800 text-white",
-                        HOBI: "bg-red-800 text-white",
-                        KARIR: "bg-indigo-900 text-white",
-                        ORGANISASI: "bg-amber-600 text-white",
-                        EVENT: "bg-blue-800 text-white",
-                      };
+              if (userMembership) {
+                const initials = c.name
+                  .split(" ")
+                  .map((w: string) => w[0])
+                  .join("")
+                  .toUpperCase()
+                  .slice(0, 2);
 
-                      return {
-                        id: c.id,
-                        name: c.name,
-                        category: c.category,
-                        description: c.description,
-                        membersCount: mData.length,
-                        role:
-                          userMembership.role === "ADMIN" ? "Admin" : "Anggota",
-                        initials,
-                        avatarColor:
-                          avatarColorMap[c.category] ||
-                          "bg-emerald-800 text-white",
-                      } as CommunityItem;
-                    }
-                  }
-                } catch (e) {
-                  console.warn(`Failed to fetch membership for ${c.id}:`, e);
-                }
-                return null;
-              }),
-            );
-            setMyCommunities(
-              mapped.filter((x): x is CommunityItem => x !== null),
-            );
+                const avatarColorMap: Record<string, string> = {
+                  AKADEMIK: "bg-emerald-800 text-white",
+                  HOBI: "bg-red-800 text-white",
+                  KARIR: "bg-indigo-900 text-white",
+                  ORGANISASI: "bg-amber-600 text-white",
+                  EVENT: "bg-blue-800 text-white",
+                };
+
+                return {
+                  id: c.id,
+                  name: c.name,
+                  category: c.category,
+                  description: c.description,
+                  membersCount: mData.length,
+                  role:
+                    userMembership.role === "ADMIN" ? "Admin" : "Anggota",
+                  initials,
+                  avatarColor:
+                    avatarColorMap[c.category] ||
+                    "bg-emerald-800 text-white",
+                } as CommunityItem;
+              }
+            }
+          } catch (e) {
+            console.warn(`Failed to fetch membership for ${c.id}:`, e);
           }
-        }
-      } catch (error) {
-        console.error("Failed to fetch my communities:", error);
-      }
-    }
+          return null;
+        }),
+      );
+      return mapped.filter((x): x is CommunityItem => x !== null);
+    },
+    enabled: !!isLoggedIn && !!activeEmail,
+    staleTime: 1000 * 60 * 5, // Cache results for 5 minutes
+  });
 
-    if (isLoggedIn) {
-      fetchMyCommunities();
-    }
-  }, [isLoggedIn, sessionUser, user]);
-
-  if (!mounted || loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center p-8 bg-white">
-        <div className="text-center font-bold text-[#0B1E36]">
-          <svg
-            className="animate-spin h-8 w-8 mx-auto mb-4 text-[#0B1E36]"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="4"
-            />
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-            />
-          </svg>
-          Memuat halaman...
-        </div>
-      </div>
-    );
+  if (!mounted || loading || (isLoggedIn && isFetchingCommunities && myCommunities.length === 0)) {
+    return <HomeSkeleton />;
   }
 
   // GUEST LANDING VIEW

@@ -1,6 +1,7 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect } from "react";
 import Navbar from "./Navbar";
 import BottomNav from "./BottomNav";
 import { useUserSession } from "../hooks/useUserSession";
@@ -9,12 +10,20 @@ const AUTH_ROUTES = ["/login", "/signup"];
 
 export default function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { user } = useUserSession();
+  const router = useRouter();
+  const { user, loading } = useUserSession();
 
   const isAuthPage = AUTH_ROUTES.some(
     (r) => pathname === r || pathname.startsWith(r + "/")
   );
   const isLoggedIn = !!(user && user.isLoggedIn);
+
+  // Redirection guard for guest users
+  useEffect(() => {
+    if (!loading && !isAuthPage && !isLoggedIn) {
+      router.push("/signup");
+    }
+  }, [loading, isAuthPage, isLoggedIn, router]);
 
   return (
     <div className="flex flex-col min-h-screen">

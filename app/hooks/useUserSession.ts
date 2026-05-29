@@ -19,41 +19,22 @@ export interface UserProfile {
   isLoggedIn: boolean;
 }
 
-const DEFAULT_USER: UserProfile = {
-  name: "Ahmad Mahasiswa",
-  nim: "1201421099",
-  email: "ahmad@students.unnes.ac.id",
-  fakultas: "FMIPA (Fakultas Matematika & Ilmu Pengetahuan Alam)",
-  jurusan: "Ilmu Komputer",
-  prodi: "Sistem Informasi (S1)",
-  angkatan: "2021",
-  profilePicture: null,
-  minat: ["UI/UX Design", "Web Development", "Organisasi"],
-  role: "mahasiswa",
-  isLoggedIn: true,
-};
-
 export function useUserSession() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Initialize from localStorage on client side
+  // Initialize from localStorage on client side (optimistic render)
   useEffect(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("unneshub_user");
-      let currentUser: UserProfile | null = null;
       if (stored) {
         try {
-          currentUser = JSON.parse(stored);
+          setUser(JSON.parse(stored));
+          setLoading(false);
         } catch (e) {
-          currentUser = DEFAULT_USER;
+          localStorage.removeItem("unneshub_user");
         }
-      } else {
-        currentUser = DEFAULT_USER;
-        localStorage.setItem("unneshub_user", JSON.stringify(DEFAULT_USER));
       }
-      setUser(currentUser);
-      setLoading(false);
     }
   }, []);
 
@@ -65,18 +46,31 @@ export function useUserSession() {
         if (session?.data?.user) {
           const dbUser = session.data.user;
           setUser((prev) => {
-            const updated = {
-              ...(prev || DEFAULT_USER),
+            const updated: UserProfile = {
               name: dbUser.name,
               email: dbUser.email,
+              nim: prev?.nim || "",
+              fakultas: prev?.fakultas || "",
+              jurusan: prev?.jurusan || "",
+              prodi: prev?.prodi || "",
+              angkatan: prev?.angkatan || "",
+              profilePicture: dbUser.image || prev?.profilePicture || null,
+              minat: prev?.minat || [],
+              role: ((dbUser as any).role?.toLowerCase() as UserRole) || prev?.role || "mahasiswa",
               isLoggedIn: true,
             };
             localStorage.setItem("unneshub_user", JSON.stringify(updated));
             return updated;
           });
+        } else {
+          // If no active session, clear client state
+          setUser(null);
+          localStorage.removeItem("unneshub_user");
         }
       } catch (e) {
         console.error("Session sync failed:", e);
+      } finally {
+        setLoading(false);
       }
     }
     syncSession();
@@ -87,7 +81,6 @@ export function useUserSession() {
     if (typeof window !== "undefined") {
       if (updatedUser) {
         localStorage.setItem("unneshub_user", JSON.stringify(updatedUser));
-        // Dispatch custom event to notify other components
         window.dispatchEvent(new Event("unneshub_user_updated"));
       } else {
         localStorage.removeItem("unneshub_user");
@@ -119,9 +112,16 @@ export function useUserSession() {
 
   const login = (email: string) => {
     const newUser: UserProfile = {
-      ...DEFAULT_USER,
-      email: email,
       name: email.split("@")[0].split(".").map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(" "),
+      nim: "",
+      email: email,
+      fakultas: "",
+      jurusan: "",
+      prodi: "",
+      angkatan: "",
+      profilePicture: null,
+      minat: [],
+      role: "mahasiswa",
       isLoggedIn: true,
     };
     saveUser(newUser);
@@ -129,17 +129,24 @@ export function useUserSession() {
 
   const signup = (userData: Partial<UserProfile>) => {
     const newUser: UserProfile = {
-      ...DEFAULT_USER,
-      ...userData,
+      name: userData.name || "",
+      nim: userData.nim || "",
+      email: userData.email || "",
+      fakultas: userData.fakultas || "",
+      jurusan: userData.jurusan || "",
+      prodi: userData.prodi || "",
+      angkatan: userData.angkatan || "",
+      profilePicture: userData.profilePicture || null,
+      minat: userData.minat || [],
+      role: userData.role || "mahasiswa",
       isLoggedIn: true,
-    } as UserProfile;
+    };
     saveUser(newUser);
   };
 
   const logout = () => {
-    if (user) {
-      saveUser({ ...user, isLoggedIn: false });
-    }
+    saveUser(null);
+    authClient.signOut().catch(console.error);
   };
 
   const updateProfile = (updatedData: Partial<UserProfile>) => {
