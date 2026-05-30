@@ -416,7 +416,7 @@ export default function CommunityDetailPage({
     if (postImageFile) {
       try {
         setUploadingImage(true);
-        imageUrl = await uploadFile(postImageFile, "posts", () => {});
+        imageUrl = await uploadFile(postImageFile, "postImage", () => {});
       } catch (uploadErr: unknown) {
         const err = uploadErr as Error;
         triggerToast(err.message || "Gagal mengunggah gambar.");
