@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useUserSession } from "../../hooks/useUserSession";
 import { useQueryClient } from "@tanstack/react-query";
+import { uploadFile } from "@/lib/upload";
 
 export default function CreateCommunityPage() {
   const router = useRouter();
@@ -19,6 +20,7 @@ export default function CreateCommunityPage() {
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
   // Simulation states
   const [formError, setFormError] = useState("");
   const [successToast, setSuccessToast] = useState("");
@@ -70,11 +72,8 @@ export default function CreateCommunityPage() {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setProfileImage(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    setProfileImageFile(file);
+    setProfileImage(URL.createObjectURL(file));
   };
 
   // Submit Handler
@@ -93,6 +92,19 @@ export default function CreateCommunityPage() {
 
     setSubmitting(true);
 
+    // Upload image to Supabase Storage if file is selected
+    let coverImageUrl = null;
+    if (profileImageFile) {
+      try {
+        coverImageUrl = await uploadFile(profileImageFile, "communityProfile", () => {});
+      } catch (uploadErr: unknown) {
+        const err = uploadErr as Error;
+        setFormError(err.message || "Gagal mengunggah gambar profil.");
+        setSubmitting(false);
+        return;
+      }
+    }
+
     const slug = name
       .toLowerCase()
       .trim()
@@ -106,8 +118,7 @@ export default function CreateCommunityPage() {
       category,
       rules: rules.trim(),
       tags,
-      community_image_url: profileImage,
-      coverImage: profileImage,
+      coverImage: coverImageUrl,
     };
 
     try {

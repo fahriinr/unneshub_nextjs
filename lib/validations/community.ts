@@ -21,11 +21,16 @@ export const createCommunitySchema = z.object({
   category: z.enum(["AKADEMIK", "HOBI", "KARIR", "ORGANISASI", "EVENT"], {
     message: "Invalid community category",
   }),
-  tags: z
+  tags:  z
     .array(z.string().max(30, "Each tag cannot exceed 30 characters"))
     .max(10, "Cannot have more than 10 tags")
     .optional()
     .default([]),
+  coverImage: z
+    .string()
+    .url("Invalid cover image URL format")
+    .optional()
+    .or(z.literal("")),
 });
 
 export const updateCommunitySchema = createCommunitySchema.partial();

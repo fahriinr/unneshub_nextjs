@@ -188,6 +188,7 @@ export async function createCommunity(data: CreateCommunityInput) {
         category: data.category as CommunityCategory,
         creatorId: user.id,
         status: "PENDING_APPROVAL" as CommunityStatus,
+        coverImage: data.coverImage || null,
       },
     });
 
