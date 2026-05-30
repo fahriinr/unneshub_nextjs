@@ -1,6 +1,5 @@
 /**
- * Utility to upload a file directly to Supabase Storage using XMLHttpRequest
- * to allow client-side upload progress tracking without external dependencies.
+ * Utility to upload a file through our server-side API proxy to bypass Supabase RLS restrictions.
  */
 export function uploadFile(
   file: File,
@@ -8,30 +7,12 @@ export function uploadFile(
   onProgress: (percent: number) => void
 ): Promise<string> {
   return new Promise((resolve, reject) => {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://nyuomnjaxklktiygbcrp.supabase.co";
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("bucket", bucket);
 
-    if (!supabaseKey) {
-      reject(
-        new Error(
-          "Supabase Anon Key belum dikonfigurasi pada environment. Silakan hubungi Administrator."
-        )
-      );
-      return;
-    }
-
-    // Generate a unique filename to avoid collision
-    const ext = file.name.split(".").pop() || "";
-    const randomStr = Math.random().toString(36).substring(2, 8);
-    const fileName = `${Date.now()}_${randomStr}.${ext}`;
-    const filePath = fileName; // Directly under bucket root
-
-    const url = `${supabaseUrl}/storage/v1/object/${bucket}/${filePath}`;
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", url, true);
-    xhr.setRequestHeader("Authorization", `Bearer ${supabaseKey}`);
-    xhr.setRequestHeader("apikey", supabaseKey);
-    xhr.setRequestHeader("Content-Type", file.type);
+    xhr.open("POST", "/api/upload", true);
 
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) {
@@ -42,8 +23,12 @@ export function uploadFile(
 
     xhr.onload = () => {
       if (xhr.status === 200) {
-        const publicUrl = `${supabaseUrl}/storage/v1/object/public/${bucket}/${filePath}`;
-        resolve(publicUrl);
+        try {
+          const res = JSON.parse(xhr.responseText);
+          resolve(res.url);
+        } catch {
+          reject(new Error("Gagal membaca respon server."));
+        }
       } else {
         try {
           const errResponse = JSON.parse(xhr.responseText);
@@ -64,6 +49,6 @@ export function uploadFile(
       reject(new Error("Terjadi kesalahan jaringan saat mengunggah gambar."));
     };
 
-    xhr.send(file);
+    xhr.send(formData);
   });
 }
