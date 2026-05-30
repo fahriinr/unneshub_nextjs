@@ -56,16 +56,8 @@ export default function Navbar() {
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
         {/* Logo and App Title */}
         <Link href="/" className="flex items-center gap-3 group hover:scale-[1.01] transition-transform">
-          <div className="w-10 h-10 rounded-lg bg-primary-dark border-2 border-primary-dark flex items-center justify-center overflow-hidden shadow-[2px_2px_0px_0px_var(--color-accent-yellow)]">
-            <svg viewBox="0 0 100 100" className="w-8 h-8">
-              {/* Shield/U Base */}
-              <path d="M25 20 C 25 20, 25 70, 50 85 C 75 70, 75 20, 75 20 L 50 15 Z" fill="#F4C41B" stroke="#0A1D37" strokeWidth="6" />
-              {/* Inner plant elements */}
-              <circle cx="50" cy="50" r="16" fill="#0A1D37" />
-              <path d="M50 65 L 50 40 M50 45 C 50 45, 42 35, 42 45 C 42 55, 50 50, 50 50 M50 48 C 50 48, 58 38, 58 48 C 58 58, 50 53, 50 53" fill="none" stroke="#22C55E" strokeWidth="5" strokeLinecap="round" />
-              {/* Inner details */}
-              <circle cx="50" cy="35" r="3" fill="#22C55E" />
-            </svg>
+          <div className="w-10 h-10 rounded-lg overflow-hidden border-2 border-primary-dark flex items-center justify-center bg-white shadow-[2px_2px_0px_0px_var(--color-accent-yellow)]">
+            <img src="/logo.png" alt="UnnesHub Logo" className="w-full h-full object-contain p-0.5" />
           </div>
           <span className="font-sans font-extrabold text-2xl tracking-tight text-primary-dark flex items-center gap-1.5">
             Unnes<span className="text-accent-yellow bg-primary-dark px-1.5 py-0.5 rounded border border-primary-dark shadow-[1.5px_1.5px_0px_0px_#0A1D37]">Hub</span>

@@ -16,6 +16,7 @@ export default function CreateCommunityPage() {
   const [category, setCategory] = useState("AKADEMIK");
   const [description, setDescription] = useState("");
   const [rules, setRules] = useState("");
+  const [profileImage, setProfileImage] = useState<string | null>(null);
   // Simulation states
   const [formError, setFormError] = useState("");
   const [successToast, setSuccessToast] = useState("");
@@ -57,7 +58,22 @@ export default function CreateCommunityPage() {
     );
   }
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormError("");
+    const file = e.target.files?.[0];
+    if (!file) return;
 
+    if (file.size > 5 * 1024 * 1024) {
+      setFormError("Ukuran gambar profile maksimal 5MB!");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setProfileImage(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Submit Handler
   const handleSubmit = async (e: React.FormEvent) => {
@@ -87,6 +103,8 @@ export default function CreateCommunityPage() {
       description: description.trim(),
       category,
       rules: rules.trim(),
+      community_image_url: profileImage,
+      coverImage: profileImage,
     };
 
     try {
@@ -210,6 +228,53 @@ export default function CreateCommunityPage() {
               required
               disabled={submitting}
             />
+          </div>
+          {/* PROFILE PICTURE UPLOAD BLOCK WITH MAX 5MB AND SOFT SQUARE PREVIEW */}
+          <div className="flex flex-col gap-2">
+            <label className="text-[10px] font-extrabold text-slate-800 uppercase tracking-wider">
+              GAMBAR PROFIL KOMUNITAS (MAKS 5MB)
+            </label>
+            <div className="flex items-center gap-4 bg-[#E2E5E9] p-4 rounded-xl">
+              {/* Soft square preview crop matching mockup guidelines */}
+              <div className="w-16 h-16 rounded-xl overflow-hidden bg-white border border-slate-300 flex items-center justify-center shrink-0 shadow-sm relative">
+                {profileImage ? (
+                  <img
+                    src={profileImage}
+                    alt="Preview"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-[10px] font-black text-slate-400">DUMMY</span>
+                )}
+              </div>
+              <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="hidden"
+                  id="community-avatar-upload"
+                  disabled={submitting}
+                />
+                <label
+                  htmlFor="community-avatar-upload"
+                  className="px-4 py-2 bg-white text-[#0B1E36] hover:bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-extrabold text-center cursor-pointer shadow-sm active:scale-98 transition-all block w-max"
+                >
+                  {profileImage ? "Ubah Gambar" : "Pilih File Gambar"}
+                </label>
+                <span className="text-[9px] font-bold text-slate-500">Format: JPG, PNG, GIF. Maksimal 5MB.</span>
+              </div>
+              {profileImage && (
+                <button
+                  type="button"
+                  onClick={() => setProfileImage(null)}
+                  className="text-red-500 hover:text-red-700 text-xs font-bold p-1 cursor-pointer"
+                  title="Hapus"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Solid Black/Navy Submit Button with user-plus icon matching Screen 3 */}
