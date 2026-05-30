@@ -231,6 +231,10 @@ export async function createPost(data: CreatePostInput): Promise<PostWithPermiss
       userId: user.id,
       title: data.title || null,
       tag: data.tag || null,
+      eventName: data.eventName || null,
+      eventDate: data.eventDate || null,
+      eventTime: data.eventTime || null,
+      eventLocation: data.eventLocation || null,
     },
     include: {
       community: true,
@@ -357,6 +361,10 @@ export async function updatePost(id: string, data: UpdatePostInput): Promise<Pos
       isAnonymous: data.isAnonymous !== undefined ? data.isAnonymous : undefined,
       title: data.title !== undefined ? (data.title || null) : undefined,
       tag: data.tag !== undefined ? (data.tag || null) : undefined,
+      eventName: data.eventName !== undefined ? (data.eventName || null) : undefined,
+      eventDate: data.eventDate !== undefined ? (data.eventDate || null) : undefined,
+      eventTime: data.eventTime !== undefined ? (data.eventTime || null) : undefined,
+      eventLocation: data.eventLocation !== undefined ? (data.eventLocation || null) : undefined,
     },
     include: {
       community: true,

@@ -184,6 +184,7 @@ export async function createCommunity(data: CreateCommunityInput) {
         slug: data.slug,
         description: data.description,
         rules: data.rules,
+        tags: data.tags || [],
         category: data.category as CommunityCategory,
         creatorId: user.id,
         status: "PENDING_APPROVAL" as CommunityStatus,

@@ -15,7 +15,9 @@ export default function CreateCommunityPage() {
   const [name, setName] = useState("");
   const [category, setCategory] = useState("AKADEMIK");
   const [description, setDescription] = useState("");
-  const [rules, setRules] = useState("");
+  const rules = "";
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
   const [profileImage, setProfileImage] = useState<string | null>(null);
   // Simulation states
   const [formError, setFormError] = useState("");
@@ -103,6 +105,7 @@ export default function CreateCommunityPage() {
       description: description.trim(),
       category,
       rules: rules.trim(),
+      tags,
       community_image_url: profileImage,
       coverImage: profileImage,
     };
@@ -127,8 +130,9 @@ export default function CreateCommunityPage() {
       setTimeout(() => {
         router.push("/");
       }, 2000);
-    } catch (apiError: any) {
-      setFormError(apiError.message || "Gagal membuat komunitas");
+    } catch (apiError: unknown) {
+      const err = apiError as Error;
+      setFormError(err.message || "Gagal membuat komunitas");
     } finally {
       setSubmitting(false);
     }
@@ -229,6 +233,63 @@ export default function CreateCommunityPage() {
               disabled={submitting}
             />
           </div>
+
+          {/* TAGS */}
+          <div className="flex flex-col gap-2">
+            <label className="text-[10px] font-extrabold text-slate-800 uppercase tracking-wider">
+              TAGS KOMUNITAS
+            </label>
+            <div className="flex flex-wrap gap-1.5 mb-1">
+              {tags.map((tag, idx) => (
+                <span key={idx} className="inline-flex items-center gap-1 bg-[#0B1E36] text-white text-[10px] font-extrabold px-2.5 py-1 rounded-lg">
+                  #{tag}
+                  <button
+                    type="button"
+                    onClick={() => setTags(tags.filter((_, i) => i !== idx))}
+                    className="text-white/60 hover:text-white ml-0.5 cursor-pointer"
+                    disabled={submitting}
+                  >✕</button>
+                </span>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value.replace(/[^a-zA-Z0-9_]/g, ""))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === ",") {
+                    e.preventDefault();
+                    const val = tagInput.trim();
+                    if (val && tags.length < 10 && !tags.includes(val)) {
+                      setTags([...tags, val]);
+                      setTagInput("");
+                    }
+                  }
+                }}
+                placeholder="Ketik tag lalu tekan Enter"
+                className="flex-1 bg-[#E2E5E9] rounded-xl p-3 text-xs font-bold text-[#0B1E36] outline-none placeholder-[#8FA0AF] transition-all"
+                maxLength={30}
+                disabled={submitting || tags.length >= 10}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const val = tagInput.trim();
+                  if (val && tags.length < 10 && !tags.includes(val)) {
+                    setTags([...tags, val]);
+                    setTagInput("");
+                  }
+                }}
+                className="px-4 py-2 bg-[#0B1E36] text-white text-[10px] font-extrabold rounded-xl cursor-pointer hover:bg-black/90 transition-all"
+                disabled={submitting || tags.length >= 10 || !tagInput.trim()}
+              >
+                Tambah
+              </button>
+            </div>
+            <span className="text-[9px] font-bold text-slate-500">Maks 10 tag. Contoh: AI, IoT, Robotics</span>
+          </div>
+
           {/* PROFILE PICTURE UPLOAD BLOCK WITH MAX 5MB AND SOFT SQUARE PREVIEW */}
           <div className="flex flex-col gap-2">
             <label className="text-[10px] font-extrabold text-slate-800 uppercase tracking-wider">
