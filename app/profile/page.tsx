@@ -14,7 +14,17 @@ const FAKULTAS_LIST = [
   "FISIP (Fakultas Ilmu Sosial dan Ilmu Politik)",
   "FBS (Fakultas Bahasa dan Seni)",
   "FIP (Fakultas Ilmu Pendidikan)",
-  "FIK (Fakultas Ilmu Keolahragaan)",
+];
+
+const PREDEFINED_MINAT = [
+  "#Akademik",
+  "#Teknologi",
+  "#Karier",
+  "#Organisasi",
+  "#Hobi",
+  "#Olahraga",
+  "#Kreativitas",
+  "#Event",
 ];
 
 export default function ProfilePage() {
@@ -299,30 +309,49 @@ export default function ProfilePage() {
               <label className="text-[9px] font-black text-slate-600 uppercase tracking-wider pl-1 select-none">Minat</label>
               
               {isEditing ? (
-                <div className="flex flex-col gap-2">
-                  <input
-                    type="text"
-                    value={newMinatTag}
-                    onChange={(e) => setNewMinatTag(e.target.value)}
-                    onKeyDown={handleAddMinat}
-                    placeholder="Ketik minat & tekan Enter..."
-                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-[#0B1E36] outline-none shadow-sm transition-all focus:border-slate-300"
-                  />
-                  <div className="flex flex-wrap gap-2 p-2.5 bg-white rounded-xl border border-slate-200 min-h-[42px] shadow-sm select-none">
-                    {editMinat.map((tag) => (
-                      <span
-                        key={tag}
-                        onClick={() => handleRemoveMinat(tag)}
-                        className="inline-flex items-center gap-1 px-3 py-1 bg-amber-100 hover:bg-red-50 hover:text-red-600 text-[#0B1E36] rounded-full text-[10px] font-extrabold cursor-pointer transition-all border border-amber-200/50"
-                        title="Klik untuk menghapus"
-                      >
-                        {tag} <span className="font-extrabold text-[8px]">✕</span>
-                      </span>
-                    ))}
-                    {editMinat.length === 0 && (
-                      <span className="text-[10px] font-bold text-slate-400 italic p-1">Tambahkan minat di atas.</span>
-                    )}
+                <div className="flex flex-col gap-3">
+                  <span className="text-[10px] font-bold text-slate-400 italic pl-1 select-none">
+                    Pilih minat Anda dari daftar di bawah (bisa pilih beberapa):
+                  </span>
+                  <div className="flex flex-wrap gap-2 p-3 bg-white rounded-2xl border border-slate-200 shadow-sm select-none">
+                    {PREDEFINED_MINAT.map((tag) => {
+                      const isSelected = editMinat.includes(tag);
+                      return (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => {
+                            if (isSelected) {
+                              setEditMinat(editMinat.filter((t) => t !== tag));
+                            } else {
+                              setEditMinat([...editMinat, tag]);
+                            }
+                          }}
+                          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all border cursor-pointer active:scale-95 flex items-center gap-1 ${
+                            isSelected
+                              ? "bg-[#0B1E36] text-[#F2C010] border-[#0B1E36] shadow-sm font-black"
+                              : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                          }`}
+                        >
+                          {tag}
+                          <span className="text-[9px] opacity-75">{isSelected ? "✓" : "+"}</span>
+                        </button>
+                      );
+                    })}
                   </div>
+                  {editMinat.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 p-2 bg-slate-50 rounded-xl border border-slate-150 select-none">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block w-full pl-1 mb-1 select-none">Terpilih:</span>
+                      {editMinat.map((tag) => (
+                        <span
+                          key={tag}
+                          className="px-2.5 py-0.5 bg-amber-100 border border-amber-200/50 text-[#0B1E36] rounded-full text-[9px] font-extrabold"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="flex flex-wrap gap-2 min-h-[42px] select-text">

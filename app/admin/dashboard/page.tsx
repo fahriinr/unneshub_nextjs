@@ -13,6 +13,9 @@ interface CommunityAdminItem {
   category: string;
   status: "PENDING_APPROVAL" | "APPROVED" | "REJECTED";
   createdAt: string;
+  rules?: string | null;
+  coverImage?: string | null;
+  community_image_url?: string | null;
   creator: {
     name: string;
     email: string;
@@ -28,6 +31,10 @@ export default function AdminDashboardPage() {
   const [statusFilter, setStatusFilter] = useState<"ALL" | "PENDING_APPROVAL" | "APPROVED">("ALL");
   const [successToast, setSuccessToast] = useState("");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  // Tags inline editing states
+  const [editingTagsId, setEditingTagsId] = useState<string | null>(null);
+  const [inputTagsVal, setInputTagsVal] = useState("");
 
   // Protection Guard
   useEffect(() => {
@@ -66,6 +73,26 @@ export default function AdminDashboardPage() {
     );
   }
 
+  // Helper parser for community tags stored in rules
+  const parseRulesAndTags = (rulesString: string | null) => {
+    if (!rulesString) return { tags: [], rules: "" };
+    const tagsMatch = rulesString.match(/\[TAGS\](.*?)\[RULES\]/);
+    if (tagsMatch) {
+      const tagsPart = tagsMatch[1].trim();
+      const rulesPart = rulesString.replace(/\[TAGS\].*?\[RULES\]/, "").trim();
+      const tags = tagsPart ? tagsPart.split(" ").filter((t) => t.startsWith("#")) : [];
+      return { tags, rules: rulesPart };
+    }
+    const tags: string[] = [];
+    const cleanRules = rulesString
+      .replace(/(#[a-zA-Z0-9_]+)/g, (match) => {
+        tags.push(match);
+        return "";
+      })
+      .trim();
+    return { tags, rules: cleanRules || rulesString };
+  };
+
   // Toggle approval handler
   const handleToggleApproval = async (id: string, currentStatus: string) => {
     setUpdatingId(id);
@@ -101,6 +128,49 @@ export default function AdminDashboardPage() {
     }
   };
 
+  // Tag save handler strictly for GLOBAL_ADMIN from dashboard
+  const handleSaveTags = async (id: string, currentRules: string | null, newTagsStr: string) => {
+    setUpdatingId(id);
+    const { rules: cleanRules } = parseRulesAndTags(currentRules);
+
+    // Normalize tags: split, ensure prepended #, filter out empty elements
+    const formattedTags = newTagsStr
+      .split(" ")
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0)
+      .map((t) => (t.startsWith("#") ? t : `#${t}`))
+      .join(" ");
+
+    const serializedRules = `[TAGS] ${formattedTags} [RULES] ${cleanRules || "Selamat datang!"}`;
+
+    try {
+      const res = await fetch(`/api/admin/communities/${id}/verify`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rules: serializedRules }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Gagal menyimpan tag komunitas");
+      }
+
+      // Optimistic update
+      queryClient.setQueryData<CommunityAdminItem[]>(["adminCommunities"], (old) => {
+        if (!old) return [];
+        return old.map((c) => (c.id === id ? { ...c, rules: serializedRules } : c));
+      });
+
+      setSuccessToast("Tag komunitas berhasil diperbarui! 🏷️");
+      setTimeout(() => setSuccessToast(""), 3000);
+      setEditingTagsId(null);
+      setInputTagsVal("");
+    } catch (err: any) {
+      alert(err.message || "Gagal menyimpan tag");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   // Stats derivation
   const totalCount = communities.length;
   const approvedCount = communities.filter((c) => c.status === "APPROVED").length;
@@ -113,9 +183,7 @@ export default function AdminDashboardPage() {
       c.creator.name.toLowerCase().includes(search.toLowerCase()) ||
       c.creator.email.toLowerCase().includes(search.toLowerCase());
 
-    const matchesStatus =
-      statusFilter === "ALL" ||
-      c.status === statusFilter;
+    const matchesStatus = statusFilter === "ALL" || c.status === statusFilter;
 
     return matchesSearch && matchesStatus;
   });
@@ -150,6 +218,18 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const getTagColor = (tag: string, index: number) => {
+    // Alternate tag colors based on index matching neobrutalist style guide
+    const colors = [
+      "bg-[#FEF08A] text-yellow-900 border-yellow-300", // Yellow
+      "bg-[#BFDBFE] text-blue-900 border-blue-300",   // Blue
+      "bg-[#E9D5FF] text-purple-900 border-purple-300", // Purple
+      "bg-[#A7F3D0] text-emerald-900 border-emerald-300", // Green
+      "bg-[#FECDD3] text-rose-900 border-rose-300",     // Rose
+    ];
+    return colors[index % colors.length];
+  };
+
   return (
     <div className="flex-1 w-full bg-[#FDFBF7] min-h-screen text-[#0B1E36] font-sans pb-16">
       {/* Toast Notification */}
@@ -168,7 +248,7 @@ export default function AdminDashboardPage() {
           Dashboard Verifikasi Komunitas
         </h1>
         <p className="text-xs font-semibold text-slate-500 max-w-2xl leading-relaxed">
-          Tinjau kiriman komunitas baru mahasiswa UNNES, verifikasi kelayakan nama & deskripsi, dan beri persetujuan agar komunitas dapat diakses secara publik.
+          Tinjau usulan komunitas baru, kelola verifikasi keanggotaan publik, serta tambahkan tag kategori untuk menata direktori komunitas mahasiswa UNNES.
         </p>
       </div>
 
@@ -283,6 +363,9 @@ export default function AdminDashboardPage() {
                   Kategori
                 </th>
                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider">
+                  Tag Komunitas
+                </th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider">
                   Nama Author
                 </th>
                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider">
@@ -296,78 +379,161 @@ export default function AdminDashboardPage() {
             <tbody className="divide-y divide-slate-100 font-semibold text-xs text-[#0B1E36]">
               {filteredCommunities.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-bold italic">
+                  <td colSpan={6} className="px-6 py-12 text-center text-slate-400 font-bold italic">
                     Tidak ditemukan usulan komunitas.
                   </td>
                 </tr>
               ) : (
-                filteredCommunities.map((c) => (
-                  <tr key={c.id} className="hover:bg-slate-50/50 transition-colors">
-                    {/* Community name */}
-                    <td className="px-6 py-4.5">
-                      <div className="font-extrabold text-[#0B1E36] text-sm leading-tight">
-                        {c.name}
-                      </div>
-                      <div className="text-[10px] font-bold text-slate-400 mt-1 max-w-xs truncate" title={c.description}>
-                        {c.description}
-                      </div>
-                    </td>
+                filteredCommunities.map((c) => {
+                  const { tags } = parseRulesAndTags(c.rules || "");
+                  const isEditingTags = editingTagsId === c.id;
 
-                    {/* Category */}
-                    <td className="px-6 py-4.5">
-                      <span className={`inline-block text-[9px] font-extrabold px-2.5 py-1 border rounded-md uppercase tracking-wider ${getCategoryStyles(c.category)}`}>
-                        {c.category}
-                      </span>
-                    </td>
+                  return (
+                    <tr key={c.id} className="hover:bg-slate-50/50 transition-colors">
+                      {/* Community name with Soft Box avatar thumbnail crop */}
+                      <td className="px-6 py-4.5">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl overflow-hidden border border-slate-200 shrink-0 bg-white flex items-center justify-center shadow-sm">
+                            {c.coverImage || c.community_image_url ? (
+                              <img
+                                src={c.coverImage || c.community_image_url || ""}
+                                alt={c.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full bg-[#0B1E36] text-white flex items-center justify-center font-extrabold text-[11px] uppercase">
+                                {c.name.slice(0, 2)}
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <div className="font-extrabold text-[#0B1E36] text-sm leading-tight">
+                              {c.name}
+                            </div>
+                            <div className="text-[10px] font-bold text-slate-400 mt-1 max-w-xs truncate" title={c.description}>
+                              {c.description}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
 
-                    {/* Author details */}
-                    <td className="px-6 py-4.5">
-                      <div className="font-extrabold text-[#0B1E36]">
-                        {c.creator.name}
-                      </div>
-                      <div className="text-[10px] font-bold text-slate-400 mt-0.5">
-                        {c.creator.email}
-                      </div>
-                    </td>
-
-                    {/* Created Date */}
-                    <td className="px-6 py-4.5 text-slate-600 font-bold">
-                      {formatDate(c.createdAt)}
-                    </td>
-
-                    {/* Status checkbox/toggle */}
-                    <td className="px-6 py-4.5 text-center">
-                      <div className="flex items-center justify-center gap-3">
-                        {/* Status Label Pill */}
-                        <span className={`inline-block text-[9px] font-extrabold px-3 py-1 rounded-full border ${
-                          c.status === "APPROVED"
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                            : "bg-amber-50 text-amber-700 border-amber-200 animate-pulse"
-                        }`}>
-                          {c.status === "APPROVED" ? "APPROVED" : "PENDING"}
+                      {/* Category */}
+                      <td className="px-6 py-4.5">
+                        <span className={`inline-block text-[9px] font-extrabold px-2.5 py-1 border rounded-md uppercase tracking-wider ${getCategoryStyles(c.category)}`}>
+                          {c.category}
                         </span>
+                      </td>
 
-                        {/* Neobrutalist Checkbox Toggle */}
-                        <button
-                          onClick={() => handleToggleApproval(c.id, c.status)}
-                          disabled={updatingId === c.id}
-                          className={`w-9 h-5 rounded-full border-2 border-[#0B1E36] p-0.5 transition-all relative cursor-pointer ${
+                      {/* Tag Column - Strictly for GLOBAL_ADMIN to add and edit */}
+                      <td className="px-6 py-4.5 min-w-[200px]">
+                        {isEditingTags ? (
+                          <div className="flex items-center gap-1.5 w-full">
+                            <input
+                              type="text"
+                              value={inputTagsVal}
+                              onChange={(e) => setInputTagsVal(e.target.value)}
+                              placeholder="Contoh: #Robotika #AI"
+                              className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-[10px] font-extrabold text-[#0B1E36] outline-none focus:border-[#0b1e36] w-full"
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  handleSaveTags(c.id, c.rules || "", inputTagsVal);
+                                } else if (e.key === "Escape") {
+                                  setEditingTagsId(null);
+                                }
+                              }}
+                            />
+                            <button
+                              onClick={() => handleSaveTags(c.id, c.rules || "", inputTagsVal)}
+                              className="w-6 h-6 rounded-md bg-[#0B1E36] text-white flex items-center justify-center text-[10px] font-bold cursor-pointer"
+                              title="Simpan"
+                            >
+                              ✓
+                            </button>
+                            <button
+                              onClick={() => setEditingTagsId(null)}
+                              className="w-6 h-6 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center text-[10px] font-bold cursor-pointer"
+                              title="Batal"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap items-center gap-1">
+                            {tags.map((tag, idx) => (
+                              <span
+                                key={tag}
+                                className={`text-[8.5px] font-extrabold px-2 py-0.5 border rounded-full ${getTagColor(tag, idx)}`}
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                            {tags.length === 0 && (
+                              <span className="text-[10px] font-bold text-slate-400 italic">Belum ada tag</span>
+                            )}
+                            <button
+                              onClick={() => {
+                                setEditingTagsId(c.id);
+                                const { tags: existingTags } = parseRulesAndTags(c.rules || "");
+                                setInputTagsVal(existingTags.join(" "));
+                              }}
+                              className="ml-1 text-slate-400 hover:text-[#0B1E36] text-[10px] font-extrabold transition-colors cursor-pointer"
+                              title="Ubah Tag"
+                            >
+                              ✏️
+                            </button>
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Author details */}
+                      <td className="px-6 py-4.5">
+                        <div className="font-extrabold text-[#0B1E36]">
+                          {c.creator.name}
+                        </div>
+                        <div className="text-[10px] font-bold text-slate-400 mt-0.5">
+                          {c.creator.email}
+                        </div>
+                      </td>
+
+                      {/* Created Date */}
+                      <td className="px-6 py-4.5 text-slate-600 font-bold">
+                        {formatDate(c.createdAt)}
+                      </td>
+
+                      {/* Status checkbox/toggle */}
+                      <td className="px-6 py-4.5 text-center">
+                        <div className="flex items-center justify-center gap-3">
+                          {/* Status Label Pill */}
+                          <span className={`inline-block text-[9px] font-extrabold px-3 py-1 rounded-full border ${
                             c.status === "APPROVED"
-                              ? "bg-emerald-500"
-                              : "bg-slate-200"
-                          } ${updatingId === c.id ? "opacity-50 pointer-events-none" : ""}`}
-                          aria-label="Toggle verification status"
-                        >
-                          <div className={`w-3.5 h-3.5 rounded-full border border-[#0B1E36] bg-white transition-all shadow-sm ${
-                            c.status === "APPROVED"
-                              ? "translate-x-4"
-                              : "translate-x-0"
-                          }`} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                              : "bg-amber-50 text-amber-700 border-amber-200 animate-pulse"
+                          }`}>
+                            {c.status === "APPROVED" ? "APPROVED" : "PENDING"}
+                          </span>
+
+                          {/* Neobrutalist Checkbox Toggle */}
+                          <button
+                            onClick={() => handleToggleApproval(c.id, c.status)}
+                            disabled={updatingId === c.id}
+                            className={`w-9 h-5 rounded-full border-2 border-[#0B1E36] p-0.5 transition-all relative cursor-pointer ${
+                              c.status === "APPROVED"
+                                ? "bg-emerald-500"
+                                : "bg-slate-200"
+                            } ${updatingId === c.id ? "opacity-50 pointer-events-none" : ""}`}
+                            aria-label="Toggle verification status"
+                          >
+                            <div className={`w-3.5 h-3.5 rounded-full border border-[#0B1E36] bg-white transition-all shadow-sm ${
+                              c.status === "APPROVED"
+                                ? "translate-x-4"
+                                : "translate-x-0"
+                            }`} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

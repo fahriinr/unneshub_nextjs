@@ -15,6 +15,7 @@ interface CommunityListItem {
   initials: string;
   isJoined: boolean;
   avatarColor: string;
+  coverImage?: string | null;
 }
 
 function useDebounce(value: string, delay: number) {
@@ -88,6 +89,7 @@ export default function JoinCommunityPage() {
           initials,
           isJoined: c.isJoined || false,
           avatarColor: avatarColorMap[c.category] || "bg-emerald-800 text-white",
+          coverImage: c.coverImage || c.community_image_url || null,
         } as CommunityListItem;
       });
     },
@@ -200,11 +202,21 @@ export default function JoinCommunityPage() {
                 className="flex items-center gap-3 bg-[#E2E5E9] rounded-xl p-3.5 transition-all hover:bg-slate-200/80 cursor-pointer"
                 id={`join-community-${community.id}`}
               >
-                {/* Abbreviation square avatar box */}
+                {/* Abbreviation or custom avatar box */}
                 <div
-                  className={`w-11 h-11 rounded-lg ${community.avatarColor} flex items-center justify-center shrink-0 font-extrabold text-sm shadow-sm`}
+                  className={`w-11 h-11 rounded-lg overflow-hidden border border-slate-200 flex items-center justify-center shrink-0 font-extrabold text-sm shadow-sm bg-white`}
                 >
-                  {community.initials}
+                  {community.coverImage ? (
+                    <img
+                      src={community.coverImage}
+                      alt={community.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className={`w-full h-full ${community.avatarColor} flex items-center justify-center`}>
+                      {community.initials}
+                    </div>
+                  )}
                 </div>
 
                 {/* Name + Member Subtexts */}

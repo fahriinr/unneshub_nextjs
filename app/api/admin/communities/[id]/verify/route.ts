@@ -10,17 +10,22 @@ export async function PATCH(
   try {
     await requireGlobalAdmin();
     const { id } = await params;
-    const { status } = await request.json();
+    const { status, rules } = await request.json();
 
-    if (!status || !["APPROVED", "PENDING_APPROVAL", "REJECTED"].includes(status)) {
-      return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+    const updateData: any = {};
+    if (status) {
+      if (!["APPROVED", "PENDING_APPROVAL", "REJECTED"].includes(status)) {
+        return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+      }
+      updateData.status = status as CommunityStatus;
+    }
+    if (rules !== undefined) {
+      updateData.rules = rules;
     }
 
     const updated = await prisma.community.update({
       where: { id },
-      data: {
-        status: status as CommunityStatus,
-      },
+      data: updateData,
       include: {
         creator: {
           select: {
