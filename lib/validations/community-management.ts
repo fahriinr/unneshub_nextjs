@@ -22,6 +22,10 @@ export const updateCommunitySchema = z.object({
     .url("Invalid cover image URL format")
     .optional()
     .or(z.literal("")),
+  tags: z
+    .array(z.string().max(30, "Each tag cannot exceed 30 characters"))
+    .max(10, "Cannot have more than 10 tags")
+    .optional(),
 });
 
 export const updateMemberRoleSchema = z.object({

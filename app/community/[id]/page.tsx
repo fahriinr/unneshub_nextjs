@@ -4,12 +4,66 @@ import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useUserSession } from "../../hooks/useUserSession";
+import { uploadFile } from "@/lib/upload";
 
 import CommunityVisitorView, {
   CommunityDetails,
 } from "../../components/CommunityVisitorView";
 import PostCard, { PostItem } from "../../components/PostCard";
 import CommentsDrawer, { CommentItem } from "../../components/CommentsDrawer";
+
+interface PostApiData {
+  id: string;
+  title: string | null;
+  content: string;
+  isAnonymous: boolean;
+  tag: string | null;
+  imageUrl: string | null;
+  post_image_url?: string | null;
+  eventName: string | null;
+  eventDate: string | null;
+  eventTime: string | null;
+  eventLocation: string | null;
+  createdAt: string;
+  likedByCurrentUser?: boolean;
+  author?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  _count?: {
+    likes: number;
+    comments: number;
+  };
+  permissions?: {
+    canEdit: boolean;
+  };
+}
+
+interface MemberApiData {
+  id: string;
+  role: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    nim: string;
+    prodi: string;
+    angkatan: number;
+  };
+}
+
+interface CommentApiData {
+  id: string;
+  postId: string;
+  content: string;
+  createdAt: string;
+  author: {
+    id: string;
+    name: string;
+    email: string;
+  };
+}
 
 const parseRulesAndTags = (rulesString: string | null) => {
   if (!rulesString) return { tags: [], rules: "" };
@@ -67,7 +121,6 @@ export default function CommunityDetailPage({
   const [postText, setPostText] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [composerType, setComposerType] = useState<"post" | "event">("post");
-  const [showEventModal, setShowEventModal] = useState(false);
   const [joining, setJoining] = useState(false);
   const [successToast, setSuccessToast] = useState("");
   const [memberRole, setMemberRole] = useState<string>("MEMBER");
@@ -82,9 +135,12 @@ export default function CommunityDetailPage({
 
   // Event creation form state
   const [eventTitle, setEventTitle] = useState("");
+  const [eventDate, setEventDate] = useState("");
   const [eventTime, setEventTime] = useState("");
   const [eventLocation, setEventLocation] = useState("");
   const [postImage, setPostImage] = useState<string | null>(null);
+  const [postImageFile, setPostImageFile] = useState<File | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   // Leave community modal states
   const [showMenuModal, setShowMenuModal] = useState(false);
@@ -164,6 +220,7 @@ export default function CommunityDetailPage({
             Math.floor((commData._count?.members || 1) / 5),
           ),
           rules: commData.rules || "",
+          tags: commData.tags || [],
           coverImage:
             commData.coverImage || commData.community_image_url || null,
           permissions: commData.permissions || {
@@ -176,11 +233,11 @@ export default function CommunityDetailPage({
         });
 
         // Map posts
-        const mappedPosts: PostItem[] = postsData.map((post: any) => {
-          const postAuthor = post.author || {};
+        const mappedPosts: PostItem[] = postsData.map((post: PostApiData) => {
+          const postAuthor = post.author;
           const authorName = post.isAnonymous
             ? "Anonymous"
-            : postAuthor.name || "Mahasiswa";
+            : postAuthor?.name || "Mahasiswa";
           const avatarLetter = post.isAnonymous
             ? "?"
             : authorName
@@ -190,17 +247,41 @@ export default function CommunityDetailPage({
                 .toUpperCase()
                 .slice(0, 2);
 
-          const { event, content } = parsePostEventAndContent(post.content);
-          if (event) {
-            event.isRegistered =
-              typeof window !== "undefined" &&
-              !!localStorage.getItem(`event-registered-${post.id}`);
+          // Prefer structured event fields; fallback to content-encoded for legacy posts
+          let event = null;
+          let displayContent = post.content;
+          if (post.eventName) {
+            const dateStr = post.eventDate || "";
+            const timeStr = post.eventTime || "";
+            let formattedTime = "";
+            if (dateStr) {
+              try {
+                const d = new Date(`${dateStr}T${timeStr || "00:00"}`);
+                formattedTime = d.toLocaleDateString("id-ID", {
+                  weekday: "long", day: "numeric", month: "long", year: "numeric",
+                  hour: "2-digit", minute: "2-digit",
+                }) + " WIB";
+              } catch { formattedTime = `${dateStr} ${timeStr}`; }
+            }
+            event = {
+              title: post.eventName,
+              time: formattedTime,
+              location: post.eventLocation || "Online",
+              isRegistered: typeof window !== "undefined" && !!localStorage.getItem(`event-registered-${post.id}`),
+            };
+          } else {
+            const parsed = parsePostEventAndContent(post.content);
+            if (parsed.event) {
+              parsed.event.isRegistered = typeof window !== "undefined" && !!localStorage.getItem(`event-registered-${post.id}`);
+              event = parsed.event;
+              displayContent = parsed.content;
+            }
           }
 
           return {
             id: post.id,
             authorName,
-            authorEmail: postAuthor.email || "",
+            authorEmail: postAuthor?.email || "",
             authorNim: "",
             avatarLetter,
             timeAgo: new Date(post.createdAt).toLocaleDateString("id-ID", {
@@ -208,7 +289,7 @@ export default function CommunityDetailPage({
               month: "short",
               year: "numeric",
             }),
-            content: content,
+            content: displayContent,
             isAnonymous: post.isAnonymous,
             likes: post._count?.likes || 0,
             commentsCount: post._count?.comments || 0,
@@ -235,7 +316,7 @@ export default function CommunityDetailPage({
   }, [id, user]);
 
   // Lazy load members list when the "Anggota" tab is active
-  const [membersList, setMembersList] = useState<any[]>([]);
+  const [membersList, setMembersList] = useState<MemberApiData[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
 
   useEffect(() => {
@@ -307,11 +388,9 @@ export default function CommunityDetailPage({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setPostImage(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    setPostImageFile(file);
+    // Generate local preview URL (no base64 sent to server)
+    setPostImage(URL.createObjectURL(file));
   };
 
   // Create post or event handler
@@ -319,44 +398,48 @@ export default function CommunityDetailPage({
     e.preventDefault();
     if (!user) return;
 
-    let contentToSubmit = postText.trim();
+    const contentToSubmit = composerType === "event"
+      ? (postText.trim() || "Ayo ikuti event seru ini!")
+      : postText.trim();
 
     if (composerType === "event") {
-      if (!eventTitle.trim() || !eventTime.trim()) {
-        triggerToast("Nama event dan waktu wajib diisi!");
+      if (!eventTitle.trim() || !eventDate.trim()) {
+        triggerToast("Nama event dan tanggal wajib diisi!");
         return;
       }
-
-      // Convert datetime-local picker format (YYYY-MM-DDTHH:MM) to Indonesian readable text
-      let formattedTime = eventTime;
-      try {
-        const date = new Date(eventTime);
-        formattedTime =
-          date.toLocaleDateString("id-ID", {
-            weekday: "long",
-            day: "numeric",
-            month: "long",
-            year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          }) + " WIB";
-      } catch (err) {
-        console.error(err);
-      }
-
-      // Serialize event into content
-      contentToSubmit = `[EVENT] Title: ${eventTitle.trim()} | Time: ${formattedTime} | Location: ${eventLocation.trim() || "Online"} [CONTENT] ${postText.trim() || "Ayo ikuti event seru ini!"}`;
     } else {
       if (!contentToSubmit) return;
     }
 
-    const payload = {
+    // Upload image to Supabase Storage if a file is selected
+    let imageUrl: string | undefined = undefined;
+    if (postImageFile) {
+      try {
+        setUploadingImage(true);
+        imageUrl = await uploadFile(postImageFile, "posts", () => {});
+      } catch (uploadErr: unknown) {
+        const err = uploadErr as Error;
+        triggerToast(err.message || "Gagal mengunggah gambar.");
+        setUploadingImage(false);
+        return;
+      } finally {
+        setUploadingImage(false);
+      }
+    }
+
+    const payload: Record<string, unknown> = {
       content: contentToSubmit,
       isAnonymous: isAnonymous,
       communityId: id,
-      imageUrl: postImage,
-      post_image_url: postImage,
+      imageUrl: imageUrl || "",
     };
+
+    if (composerType === "event") {
+      payload.eventName = eventTitle.trim();
+      payload.eventDate = eventDate;
+      payload.eventTime = eventTime;
+      payload.eventLocation = eventLocation.trim() || "Online";
+    }
 
     try {
       const res = await fetch("/api/posts", {
@@ -381,8 +464,28 @@ export default function CommunityDetailPage({
               .toUpperCase()
               .slice(0, 2);
 
-        const { event: parsedEvent, content: cleanContent } =
-          parsePostEventAndContent(newPostRaw.content);
+        // Build event from structured fields if present
+        let newEvent = undefined;
+        if (newPostRaw.eventName) {
+          const dateStr = newPostRaw.eventDate || "";
+          const timeStr = newPostRaw.eventTime || "";
+          let formattedTime = "";
+          if (dateStr) {
+            try {
+              const d = new Date(`${dateStr}T${timeStr || "00:00"}`);
+              formattedTime = d.toLocaleDateString("id-ID", {
+                weekday: "long", day: "numeric", month: "long", year: "numeric",
+                hour: "2-digit", minute: "2-digit",
+              }) + " WIB";
+            } catch { formattedTime = `${dateStr} ${timeStr}`; }
+          }
+          newEvent = {
+            title: newPostRaw.eventName,
+            time: formattedTime,
+            location: newPostRaw.eventLocation || "Online",
+            isRegistered: false,
+          };
+        }
 
         const newPostItem: PostItem = {
           id: newPostRaw.id,
@@ -391,22 +494,23 @@ export default function CommunityDetailPage({
           authorNim: user.nim || "",
           avatarLetter,
           timeAgo: "Baru saja",
-          content: cleanContent,
+          content: newPostRaw.content,
           isAnonymous: newPostRaw.isAnonymous,
           likes: 0,
           commentsCount: 0,
           isLiked: false,
-          imageUrl:
-            newPostRaw.imageUrl || newPostRaw.post_image_url || undefined,
-          event: parsedEvent || undefined,
+          imageUrl: newPostRaw.imageUrl || undefined,
+          event: newEvent,
         };
         setPosts((prev) => [newPostItem, ...prev]);
         setPostText("");
         setEventTitle("");
+        setEventDate("");
         setEventTime("");
         setEventLocation("");
         setIsAnonymous(false);
         setPostImage(null);
+        setPostImageFile(null);
         setComposerType("post");
         triggerToast(
           composerType === "event"
@@ -556,7 +660,7 @@ export default function CommunityDetailPage({
       const res = await fetch(`/api/comments?postId=${post.id}`);
       if (res.ok) {
         const data = await res.json();
-        const mappedComments: CommentItem[] = data.map((comment: any) => {
+        const mappedComments: CommentItem[] = data.map((comment: CommentApiData) => {
           const author = comment.author || {};
           const authorName = author.name || "Mahasiswa";
           const avatarLetter = authorName
@@ -694,7 +798,6 @@ export default function CommunityDetailPage({
         joining={joining}
         successToast={successToast}
         handleJoinCommunity={handleJoinCommunity}
-        parseRulesAndTags={parseRulesAndTags}
       />
     );
   }
@@ -934,16 +1037,42 @@ export default function CommunityDetailPage({
                     />
                   </div>
 
+                  <div className="flex gap-2.5">
+                    <div className="flex flex-col gap-1.5 flex-1">
+                      <label className="text-[9px] font-black text-slate-400 pl-1 uppercase tracking-wider">
+                        Tanggal Event
+                      </label>
+                      <input
+                        type="date"
+                        value={eventDate}
+                        onChange={(e) => setEventDate(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-[#0B1E36] outline-none focus:border-[#0B1E36]"
+                        required
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5 flex-1">
+                      <label className="text-[9px] font-black text-slate-400 pl-1 uppercase tracking-wider">
+                        Waktu Event
+                      </label>
+                      <input
+                        type="time"
+                        value={eventTime}
+                        onChange={(e) => setEventTime(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-[#0B1E36] outline-none focus:border-[#0B1E36]"
+                      />
+                    </div>
+                  </div>
+
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[9px] font-black text-slate-400 pl-1 uppercase tracking-wider">
-                      Jadwal / Waktu Event (Buka Kalender & Jam)
+                      Lokasi Event
                     </label>
                     <input
-                      type="datetime-local"
-                      value={eventTime}
-                      onChange={(e) => setEventTime(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-[#0B1E36] outline-none focus:border-[#0B1E36]"
-                      required
+                      type="text"
+                      value={eventLocation}
+                      onChange={(e) => setEventLocation(e.target.value)}
+                      placeholder="Contoh: Auditorium UNNES / Online via Zoom"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-[#0B1E36] outline-none placeholder-[#8FA0AF] focus:border-[#0B1E36]"
                     />
                   </div>
 
@@ -980,11 +1109,11 @@ export default function CommunityDetailPage({
                     className="h-16 w-16 object-cover rounded-lg"
                   />
                   <span className="text-[10px] font-bold text-slate-400 flex-1">
-                    Lampiran gambar siap dikirim (maks 5MB)
+                    {uploadingImage ? "Mengunggah gambar..." : "Lampiran gambar siap dikirim (maks 5MB)"}
                   </span>
                   <button
                     type="button"
-                    onClick={() => setPostImage(null)}
+                    onClick={() => { setPostImage(null); setPostImageFile(null); }}
                     className="absolute top-2 right-2 w-6 h-6 bg-[#0B1E36] text-white rounded-full flex items-center justify-center text-[10px] cursor-pointer"
                   >
                     ✕
@@ -1116,9 +1245,9 @@ export default function CommunityDetailPage({
 
             {/* 3. Tag Komunitas Card (Member View) matching your mockup colors exactly */}
             {(() => {
-              const { tags } = parseRulesAndTags(community.rules || "");
-              const displayTags =
-                tags.length > 0 ? tags : ["#Robotika", "#AI", "#IoT"];
+              const displayTags = (community.tags && community.tags.length > 0)
+                ? community.tags.map(t => t.startsWith("#") ? t : `#${t}`)
+                : ["#Robotika", "#AI", "#IoT"];
 
               return (
                 <div className="bg-white border-2 border-[#0B1E36] rounded-2xl p-5 shadow-[4px_4px_0px_0px_#0B1E36] flex flex-col gap-4 text-center select-none">
@@ -1128,9 +1257,9 @@ export default function CommunityDetailPage({
                   <div className="flex flex-wrap justify-center gap-2.5">
                     {displayTags.map((tag, idx) => {
                       const tagColors = [
-                        "bg-[#FEF08A] text-yellow-900 border-yellow-300", // Yellow (#Robotika)
-                        "bg-[#BFDBFE] text-blue-900 border-blue-300", // Blue (#AI)
-                        "bg-[#E9D5FF] text-purple-900 border-purple-300", // Purple (#IoT)
+                        "bg-[#FEF08A] text-yellow-900 border-yellow-300",
+                        "bg-[#BFDBFE] text-blue-900 border-blue-300",
+                        "bg-[#E9D5FF] text-purple-900 border-purple-300",
                         "bg-[#A7F3D0] text-emerald-900 border-emerald-300",
                         "bg-[#FECDD3] text-rose-900 border-rose-300",
                       ];
@@ -1174,7 +1303,7 @@ export default function CommunityDetailPage({
               </p>
             ) : (
               <div className="flex flex-col gap-3">
-                {membersList.map((m: any, i: number) => {
+                {membersList.map((m: MemberApiData, i: number) => {
                   const name = m.user?.name || "Mahasiswa";
                   return (
                     <div

@@ -1,4 +1,4 @@
-import { useState } from "react";
+// PostCard.tsx
 
 export interface PostItem {
   id: string;
@@ -165,6 +165,8 @@ export default function PostCard({
             <img 
               src={post.imageUrl} 
               alt="Post attachment" 
+              loading="lazy"
+              decoding="async"
               className="w-full h-44 object-cover rounded-lg"
             />
           </div>

@@ -10,6 +10,7 @@ export interface CommunityDetails {
   initials: string;
   isJoined: boolean;
   rules?: string;
+  tags?: string[];
   chatCount?: number;
   isVerified?: boolean;
   avatarColor: string;
@@ -30,7 +31,6 @@ interface CommunityVisitorViewProps {
   joining: boolean;
   successToast: string;
   handleJoinCommunity: () => void;
-  parseRulesAndTags: (rules: string | null) => { tags: string[]; rules: string };
 }
 
 export default function CommunityVisitorView({
@@ -38,7 +38,6 @@ export default function CommunityVisitorView({
   joining,
   successToast,
   handleJoinCommunity,
-  parseRulesAndTags,
 }: CommunityVisitorViewProps) {
   return (
     <div className="flex-1 w-full bg-white flex flex-col min-h-screen">
@@ -141,8 +140,9 @@ export default function CommunityVisitorView({
 
       {/* Tag Komunitas Card (Visitor View) matching mockup colors exactly */}
       {(() => {
-        const { tags } = parseRulesAndTags(community.rules || "");
-        const displayTags = tags.length > 0 ? tags : ["#Robotika", "#AI", "#IoT"];
+        const displayTags = (community.tags && community.tags.length > 0)
+          ? community.tags.map(t => t.startsWith("#") ? t : `#${t}`)
+          : ["#Robotika", "#AI", "#IoT"];
 
         return (
           <div className="px-4 pt-5 max-w-lg mx-auto w-full select-none">
@@ -151,9 +151,9 @@ export default function CommunityVisitorView({
               <div className="flex flex-wrap justify-center gap-2.5">
                 {displayTags.map((tag, idx) => {
                   const tagColors = [
-                    "bg-[#FEF08A] text-yellow-900 border-yellow-300", // Yellow (#Robotika)
-                    "bg-[#BFDBFE] text-blue-900 border-blue-300",   // Blue (#AI)
-                    "bg-[#E9D5FF] text-purple-900 border-purple-300", // Purple (#IoT)
+                    "bg-[#FEF08A] text-yellow-900 border-yellow-300",
+                    "bg-[#BFDBFE] text-blue-900 border-blue-300",
+                    "bg-[#E9D5FF] text-purple-900 border-purple-300",
                     "bg-[#A7F3D0] text-emerald-900 border-emerald-300",
                     "bg-[#FECDD3] text-rose-900 border-rose-300",
                   ];

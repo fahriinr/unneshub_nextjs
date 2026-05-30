@@ -7,6 +7,7 @@ export interface UpdateCommunityInput {
   description?: string;
   rules?: string;
   coverImage?: string;
+  tags?: string[];
 }
 
 export async function updateCommunity(communityId: string, data: UpdateCommunityInput) {
@@ -31,6 +32,7 @@ export async function updateCommunity(communityId: string, data: UpdateCommunity
       description: data.description,
       rules: data.rules,
       coverImage: data.coverImage,
+      tags: data.tags,
     },
   });
 }
