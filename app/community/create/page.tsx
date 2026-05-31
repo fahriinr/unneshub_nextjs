@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useUserSession } from "../../hooks/useUserSession";
 import { useQueryClient } from "@tanstack/react-query";
 import { uploadFile } from "@/lib/upload";
+import ImageLightbox from "../../components/ImageLightbox";
 
 export default function CreateCommunityPage() {
   const router = useRouter();
@@ -25,6 +26,7 @@ export default function CreateCommunityPage() {
   const [formError, setFormError] = useState("");
   const [successToast, setSuccessToast] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
 
   // Route protection
   useEffect(() => {
@@ -313,7 +315,8 @@ export default function CreateCommunityPage() {
                   <img
                     src={profileImage}
                     alt="Preview"
-                    className="w-full h-full object-cover"
+                    onClick={() => setPreviewImageUrl(profileImage)}
+                    className="w-full h-full object-cover cursor-zoom-in hover:brightness-95 transition-all"
                   />
                 ) : (
                   <span className="text-[10px] font-black text-slate-400">DUMMY</span>
@@ -400,6 +403,13 @@ export default function CreateCommunityPage() {
           </button>
         </form>
       </div>
+
+      {previewImageUrl && (
+        <ImageLightbox
+          src={previewImageUrl}
+          onClose={() => setPreviewImageUrl(null)}
+        />
+      )}
     </div>
   );
 }

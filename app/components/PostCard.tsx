@@ -36,6 +36,7 @@ interface PostCardProps {
   handleRegisterEvent: (id: string) => void;
   handleLike: (id: string) => Promise<void>;
   handleOpenComments: (post: PostItem) => Promise<void>;
+  onImageClick?: (url: string) => void;
 }
 
 export default function PostCard({
@@ -51,6 +52,7 @@ export default function PostCard({
   handleRegisterEvent,
   handleLike,
   handleOpenComments,
+  onImageClick,
 }: PostCardProps) {
   const isEditingThisPost = editingPostId === post.id;
 
@@ -167,7 +169,8 @@ export default function PostCard({
               alt="Post attachment" 
               loading="lazy"
               decoding="async"
-              className="w-full h-44 object-cover rounded-lg"
+              onClick={() => post.imageUrl && onImageClick?.(post.imageUrl)}
+              className="w-full h-44 object-cover rounded-lg cursor-zoom-in hover:brightness-95 transition-all"
             />
           </div>
         )}

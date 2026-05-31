@@ -11,6 +11,7 @@ import CommunityVisitorView, {
 } from "../../components/CommunityVisitorView";
 import PostCard, { PostItem } from "../../components/PostCard";
 import CommentsDrawer, { CommentItem } from "../../components/CommentsDrawer";
+import ImageLightbox from "../../components/ImageLightbox";
 
 interface PostApiData {
   id: string;
@@ -56,6 +57,7 @@ interface MemberApiData {
 interface CommentApiData {
   id: string;
   postId: string;
+  parentId: string | null;
   content: string;
   createdAt: string;
   author: {
@@ -63,6 +65,11 @@ interface CommentApiData {
     name: string;
     email: string;
   };
+  permissions?: {
+    canEdit: boolean;
+    canDelete: boolean;
+  };
+  replies?: CommentApiData[];
 }
 
 const parseRulesAndTags = (rulesString: string | null) => {
@@ -133,6 +140,21 @@ export default function CommunityDetailPage({
   const [commentText, setCommentText] = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
 
+  // Comment Action States
+  const [replyingToCommentId, setReplyingToCommentId] = useState<string | null>(null);
+  const [replyingToAuthorName, setReplyingToAuthorName] = useState<string | null>(null);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editCommentText, setEditCommentText] = useState("");
+
+  // Edit Community Details States
+  const [showEditInfoModal, setShowEditInfoModal] = useState(false);
+  const [editInfoName, setEditInfoName] = useState("");
+  const [editInfoDescription, setEditInfoDescription] = useState("");
+  const [editInfoRules, setEditInfoRules] = useState("");
+  const [editInfoTags, setEditInfoTags] = useState<string[]>([]);
+  const [editInfoTagInput, setEditInfoTagInput] = useState("");
+  const [savingEditInfo, setSavingEditInfo] = useState(false);
+
   // Event creation form state
   const [eventTitle, setEventTitle] = useState("");
   const [eventDate, setEventDate] = useState("");
@@ -141,11 +163,21 @@ export default function CommunityDetailPage({
   const [postImage, setPostImage] = useState<string | null>(null);
   const [postImageFile, setPostImageFile] = useState<File | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [submittingPost, setSubmittingPost] = useState(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
 
   // Leave community modal states
   const [showMenuModal, setShowMenuModal] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [leavingCommunity, setLeavingCommunity] = useState(false);
+
+  // Member action confirm modal states
+  const [memberActionConfirm, setMemberActionConfirm] = useState<{
+    type: "kick" | "promote" | "demote";
+    userId: string;
+    userName: string;
+  } | null>(null);
+  const [processingMemberAction, setProcessingMemberAction] = useState(false);
 
   // Edit post states
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
@@ -223,6 +255,7 @@ export default function CommunityDetailPage({
           tags: commData.tags || [],
           coverImage:
             commData.coverImage || commData.community_image_url || null,
+          creatorId: commData.creatorId,
           permissions: commData.permissions || {
             canEdit: false,
             canDelete: false,
@@ -411,37 +444,39 @@ export default function CommunityDetailPage({
       if (!contentToSubmit) return;
     }
 
-    // Upload image to Supabase Storage if a file is selected
-    let imageUrl: string | undefined = undefined;
-    if (postImageFile) {
-      try {
-        setUploadingImage(true);
-        imageUrl = await uploadFile(postImageFile, "postImage", () => {});
-      } catch (uploadErr: unknown) {
-        const err = uploadErr as Error;
-        triggerToast(err.message || "Gagal mengunggah gambar.");
-        setUploadingImage(false);
-        return;
-      } finally {
-        setUploadingImage(false);
-      }
-    }
-
-    const payload: Record<string, unknown> = {
-      content: contentToSubmit,
-      isAnonymous: isAnonymous,
-      communityId: id,
-      imageUrl: imageUrl || "",
-    };
-
-    if (composerType === "event") {
-      payload.eventName = eventTitle.trim();
-      payload.eventDate = eventDate;
-      payload.eventTime = eventTime;
-      payload.eventLocation = eventLocation.trim() || "Online";
-    }
-
+    setSubmittingPost(true);
     try {
+      // Upload image to Supabase Storage if a file is selected
+      let imageUrl: string | undefined = undefined;
+      if (postImageFile) {
+        try {
+          setUploadingImage(true);
+          imageUrl = await uploadFile(postImageFile, "postImage", () => {});
+        } catch (uploadErr: unknown) {
+          const err = uploadErr as Error;
+          triggerToast(err.message || "Gagal mengunggah gambar.");
+          setUploadingImage(false);
+          setSubmittingPost(false);
+          return;
+        } finally {
+          setUploadingImage(false);
+        }
+      }
+
+      const payload: Record<string, unknown> = {
+        content: contentToSubmit,
+        isAnonymous: isAnonymous,
+        communityId: id,
+        imageUrl: imageUrl || "",
+      };
+
+      if (composerType === "event") {
+        payload.eventName = eventTitle.trim();
+        payload.eventDate = eventDate;
+        payload.eventTime = eventTime;
+        payload.eventLocation = eventLocation.trim() || "Online";
+      }
+
       const res = await fetch("/api/posts", {
         method: "POST",
         headers: {
@@ -524,6 +559,8 @@ export default function CommunityDetailPage({
     } catch (err) {
       console.error(err);
       triggerToast("Gagal menghubungi server.");
+    } finally {
+      setSubmittingPost(false);
     }
   };
 
@@ -652,36 +689,45 @@ export default function CommunityDetailPage({
   // ==========================================
   // COMMENTS DRAWER SYSTEM
   // ==========================================
+  const mapComment = (comment: CommentApiData): CommentItem => {
+    const author = comment.author || {};
+    const authorName = author.name || "Mahasiswa";
+    const avatarLetter = authorName
+      .split(" ")
+      .map((w: string) => w[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+    return {
+      id: comment.id,
+      postId: comment.postId,
+      parentId: comment.parentId,
+      content: comment.content,
+      createdAt: new Date(comment.createdAt).toLocaleDateString("id-ID", {
+        day: "numeric",
+        month: "short",
+      }),
+      authorName,
+      avatarLetter,
+      isAnonymous: false,
+      permissions: comment.permissions || { canEdit: false, canDelete: false },
+      replies: comment.replies ? comment.replies.map(mapComment) : [],
+    };
+  };
+
   const handleOpenComments = async (post: PostItem) => {
     setActiveCommentPost(post);
     setCommentText("");
+    setReplyingToCommentId(null);
+    setReplyingToAuthorName(null);
+    setEditingCommentId(null);
+    setEditCommentText("");
 
     try {
       const res = await fetch(`/api/comments?postId=${post.id}`);
       if (res.ok) {
         const data = await res.json();
-        const mappedComments: CommentItem[] = data.map((comment: CommentApiData) => {
-          const author = comment.author || {};
-          const authorName = author.name || "Mahasiswa";
-          const avatarLetter = authorName
-            .split(" ")
-            .map((w: string) => w[0])
-            .join("")
-            .toUpperCase()
-            .slice(0, 2);
-          return {
-            id: comment.id,
-            postId: comment.postId,
-            content: comment.content,
-            createdAt: new Date(comment.createdAt).toLocaleDateString("id-ID", {
-              day: "numeric",
-              month: "short",
-            }),
-            authorName,
-            avatarLetter,
-            isAnonymous: false,
-          };
-        });
+        const mappedComments: CommentItem[] = data.map(mapComment);
         setComments(mappedComments);
       }
     } catch (err) {
@@ -698,6 +744,7 @@ export default function CommunityDetailPage({
     const payload = {
       content: commentText.trim(),
       postId: activeCommentPost.id,
+      parentId: replyingToCommentId || null,
     };
 
     try {
@@ -708,26 +755,23 @@ export default function CommunityDetailPage({
       });
       if (res.ok) {
         const newCommentRaw = await res.json();
-        const commentAuthor = newCommentRaw.author || {};
-        const authorName = commentAuthor.name || user.name;
-        const avatarLetter = authorName
-          .split(" ")
-          .map((w: string) => w[0])
-          .join("")
-          .toUpperCase()
-          .slice(0, 2);
+        const mappedNewComment = mapComment(newCommentRaw);
 
-        const newCommentItem: CommentItem = {
-          id: newCommentRaw.id,
-          postId: activeCommentPost.id,
-          content: newCommentRaw.content,
-          createdAt: "Baru saja",
-          authorName,
-          avatarLetter,
-          isAnonymous: false,
-        };
-
-        setComments((prev) => [...prev, newCommentItem]);
+        if (replyingToCommentId) {
+          setComments((prev) =>
+            prev.map((c) => {
+              if (c.id === replyingToCommentId) {
+                return {
+                  ...c,
+                  replies: [...(c.replies || []), mappedNewComment],
+                };
+              }
+              return c;
+            })
+          );
+        } else {
+          setComments((prev) => [...prev, mappedNewComment]);
+        }
 
         // Update comment count in posts state
         setPosts((prev) =>
@@ -740,6 +784,8 @@ export default function CommunityDetailPage({
         );
 
         setCommentText("");
+        setReplyingToCommentId(null);
+        setReplyingToAuthorName(null);
         triggerToast("Komentar berhasil ditambahkan!");
       } else {
         const err = await res.json();
@@ -750,6 +796,183 @@ export default function CommunityDetailPage({
       triggerToast("Gagal menghubungi server.");
     } finally {
       setSubmittingComment(false);
+    }
+  };
+
+  const handleSaveEditComment = async (commentId: string) => {
+    if (!editCommentText.trim()) return;
+    try {
+      const res = await fetch(`/api/comments/${commentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: editCommentText.trim() }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setComments((prev) =>
+          prev.map((c) => {
+            if (c.id === commentId) {
+              return { ...c, content: updated.content };
+            }
+            if (c.replies) {
+              return {
+                ...c,
+                replies: c.replies.map((r) =>
+                  r.id === commentId ? { ...r, content: updated.content } : r
+                ),
+              };
+            }
+            return c;
+          })
+        );
+        setEditingCommentId(null);
+        setEditCommentText("");
+        triggerToast("Komentar berhasil diperbarui!");
+      } else {
+        const err = await res.json();
+        triggerToast(err.error || "Gagal diperbarui");
+      }
+    } catch (err) {
+      console.error(err);
+      triggerToast("Gagal menghubungi server.");
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!confirm("Apakah Anda yakin ingin menghapus komentar ini?")) return;
+    try {
+      const res = await fetch(`/api/comments/${commentId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setComments((prev) => {
+          let deletedCount = 0;
+          const nextComments = prev.filter((c) => {
+            if (c.id === commentId) {
+              deletedCount += 1 + (c.replies?.length || 0);
+              return false;
+            }
+            if (c.replies) {
+              const originalLength = c.replies.length;
+              c.replies = c.replies.filter((r) => r.id !== commentId);
+              deletedCount += originalLength - c.replies.length;
+            }
+            return true;
+          });
+
+          if (activeCommentPost && deletedCount > 0) {
+            setPosts((postsPrev) =>
+              postsPrev.map((p) =>
+                p.id === activeCommentPost.id
+                  ? { ...p, commentsCount: Math.max(0, p.commentsCount - deletedCount) }
+                  : p
+              )
+            );
+          }
+          return nextComments;
+        });
+        triggerToast("Komentar berhasil dihapus!");
+      } else {
+        const err = await res.json();
+        triggerToast(err.error || "Gagal menghapus komentar");
+      }
+    } catch (err) {
+      console.error(err);
+      triggerToast("Gagal menghubungi server.");
+    }
+  };
+
+  const handleKickMember = async (userId: string) => {
+    try {
+      const res = await fetch(`/api/communities/${id}/members/${userId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setMembersList((prev) => prev.filter((m) => m.user.id !== userId));
+        setCommunity((prev) =>
+          prev ? { ...prev, membersCount: Math.max(1, prev.membersCount - 1) } : null
+        );
+        triggerToast("Anggota berhasil dikeluarkan.");
+      } else {
+        const err = await res.json();
+        triggerToast(err.error || "Gagal mengeluarkan anggota");
+      }
+    } catch (err) {
+      console.error(err);
+      triggerToast("Gagal menghubungi server.");
+    }
+  };
+
+  const handleUpdateMemberRole = async (userId: string, newRole: "ADMIN" | "MEMBER") => {
+    try {
+      const res = await fetch(`/api/communities/${id}/role`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId: userId, role: newRole }),
+      });
+      if (res.ok) {
+        setMembersList((prev) =>
+          prev.map((m) => (m.user.id === userId ? { ...m, role: newRole } : m))
+        );
+        triggerToast(`Peran anggota berhasil diperbarui menjadi ${newRole}.`);
+      } else {
+        const err = await res.json();
+        triggerToast(err.error || "Gagal memperbarui peran anggota");
+      }
+    } catch (err) {
+      console.error(err);
+      triggerToast("Gagal menghubungi server.");
+    }
+  };
+
+  const handleSaveEditInfo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editInfoName.trim()) {
+      triggerToast("Nama komunitas minimal 3 karakter!");
+      return;
+    }
+    if (editInfoDescription.trim().length < 10) {
+      triggerToast("Deskripsi komunitas minimal 10 karakter!");
+      return;
+    }
+
+    setSavingEditInfo(true);
+    try {
+      const res = await fetch(`/api/communities/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editInfoName.trim(),
+          description: editInfoDescription.trim(),
+          rules: editInfoRules.trim(),
+          tags: editInfoTags,
+        }),
+      });
+
+      if (res.ok) {
+        const updatedComm = await res.json();
+        setCommunity((prev) =>
+          prev
+            ? {
+                ...prev,
+                name: updatedComm.name,
+                description: updatedComm.description,
+                rules: updatedComm.rules,
+                tags: updatedComm.tags,
+              }
+            : null
+        );
+        setShowEditInfoModal(false);
+        triggerToast("Informasi komunitas berhasil diperbarui!");
+      } else {
+        const err = await res.json();
+        triggerToast(err.error || "Gagal memperbarui informasi komunitas");
+      }
+    } catch (err) {
+      console.error(err);
+      triggerToast("Gagal menghubungi server.");
+    } finally {
+      setSavingEditInfo(false);
     }
   };
 
@@ -845,7 +1068,8 @@ export default function CommunityDetailPage({
                   community.coverImage || community.community_image_url || ""
                 }
                 alt={community.name}
-                className="w-full h-full object-cover"
+                onClick={() => setPreviewImageUrl(community.coverImage || community.community_image_url || null)}
+                className="w-full h-full object-cover cursor-zoom-in hover:brightness-95 transition-all"
               />
             ) : (
               <div
@@ -891,9 +1115,16 @@ export default function CommunityDetailPage({
           </div>
           {/* Yellow pill edit button matching screen 3 */}
           <button
-            onClick={() =>
-              triggerToast("Edit Informasi Komunitas segera hadir!")
-            }
+            onClick={() => {
+              if (community) {
+                setEditInfoName(community.name);
+                setEditInfoDescription(community.description);
+                setEditInfoRules(community.rules || "");
+                setEditInfoTags(community.tags || []);
+                setEditInfoTagInput("");
+                setShowEditInfoModal(true);
+              }
+            }}
             className="px-3 py-1 bg-[#F2C010] text-[#0B1E36] font-black text-[9px] rounded-lg border border-amber-400 shadow-sm active:scale-95 transition-all cursor-pointer"
           >
             Edit Informasi
@@ -1106,7 +1337,8 @@ export default function CommunityDetailPage({
                   <img
                     src={postImage}
                     alt="Attachment"
-                    className="h-16 w-16 object-cover rounded-lg"
+                    onClick={() => setPreviewImageUrl(postImage)}
+                    className="h-16 w-16 object-cover rounded-lg cursor-zoom-in hover:brightness-95 transition-all"
                   />
                   <span className="text-[10px] font-bold text-slate-400 flex-1">
                     {uploadingImage ? "Mengunggah gambar..." : "Lampiran gambar siap dikirim (maks 5MB)"}
@@ -1172,11 +1404,22 @@ export default function CommunityDetailPage({
                   </button>
                 </div>
 
-                <button
+                 <button
                   type="submit"
-                  className="px-6 py-1.5 bg-[#0B1E36] hover:bg-black text-white font-extrabold text-xs rounded-lg shadow-sm transition-all cursor-pointer"
+                  disabled={submittingPost}
+                  className="px-6 py-1.5 bg-[#0B1E36] hover:bg-black text-white font-extrabold text-xs rounded-lg shadow-sm transition-all cursor-pointer disabled:opacity-50"
                 >
-                  Post
+                  {submittingPost ? (
+                    <span className="flex items-center gap-1.5 justify-center">
+                      <svg className="animate-spin h-3 w-3 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      Loading...
+                    </span>
+                  ) : (
+                    "Post"
+                  )}
                 </button>
               </div>
             </form>
@@ -1205,6 +1448,7 @@ export default function CommunityDetailPage({
                     handleRegisterEvent={handleRegisterEvent}
                     handleLike={handleLike}
                     handleOpenComments={handleOpenComments}
+                    onImageClick={(url) => setPreviewImageUrl(url)}
                   />
                 ))
               )}
@@ -1308,19 +1552,53 @@ export default function CommunityDetailPage({
                   return (
                     <div
                       key={m.id || i}
-                      className="flex items-center gap-2.5 pb-2 border-b border-slate-50 text-xs font-bold text-[#0B1E36]"
+                      className="flex items-center justify-between pb-2 border-b border-slate-50 text-xs font-bold text-[#0B1E36]"
                     >
-                      <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center font-bold text-[10px] border border-slate-200 text-slate-500 shrink-0">
-                        {name.charAt(0).toUpperCase()}
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center font-bold text-[10px] border border-slate-200 text-slate-500 shrink-0">
+                          {name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          <span className="truncate">{name}</span>
+                          {m.role === "ADMIN" && (
+                            <span className="text-[8px] font-extrabold text-[#F2C010] bg-[#0B1E36] px-1.5 py-0.5 rounded w-max mt-0.5 uppercase tracking-wide">
+                              Admin
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex flex-col">
-                        <span>{name}</span>
-                        {m.role === "ADMIN" && (
-                          <span className="text-[8px] font-extrabold text-[#F2C010] bg-[#0B1E36] px-1.5 py-0.5 rounded w-max mt-0.5 uppercase tracking-wide">
-                            Admin
-                          </span>
-                        )}
-                      </div>
+                      {community.isJoined && (community.permissions.isCommunityOwner || community.permissions.isCommunityAdmin) && (
+                        <div className="flex items-center gap-2 shrink-0">
+                          {community.permissions.isCommunityOwner && m.user.email !== user.email && (
+                            <button
+                              type="button"
+                              onClick={() => setMemberActionConfirm({
+                                type: m.role === "ADMIN" ? "demote" : "promote",
+                                userId: m.user.id,
+                                userName: name,
+                              })}
+                              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded text-[9px] font-black cursor-pointer transition-all"
+                            >
+                              {m.role === "ADMIN" ? "Demote" : "Promote"}
+                            </button>
+                          )}
+                          {m.user.email !== user.email && m.user.id !== community.creatorId && (
+                            (community.permissions.isCommunityOwner || (community.permissions.isCommunityAdmin && m.role !== "ADMIN")) && (
+                              <button
+                                type="button"
+                                onClick={() => setMemberActionConfirm({
+                                  type: "kick",
+                                  userId: m.user.id,
+                                  userName: name,
+                                })}
+                                className="px-2 py-1 bg-red-50 hover:bg-red-100 border border-red-200 rounded text-[9px] font-black cursor-pointer transition-all text-red-600"
+                              >
+                                Kick
+                              </button>
+                            )
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -1354,7 +1632,157 @@ export default function CommunityDetailPage({
           submittingComment={submittingComment}
           handlePostComment={handlePostComment}
           onClose={() => setActiveCommentPost(null)}
+          replyingToCommentId={replyingToCommentId}
+          setReplyingToCommentId={setReplyingToCommentId}
+          replyingToAuthorName={replyingToAuthorName}
+          setReplyingToAuthorName={setReplyingToAuthorName}
+          editingCommentId={editingCommentId}
+          setEditingCommentId={setEditingCommentId}
+          editCommentText={editCommentText}
+          setEditCommentText={setEditCommentText}
+          handleSaveEditComment={handleSaveEditComment}
+          handleDeleteComment={handleDeleteComment}
         />
+      )}
+
+      {/* Edit Informasi Modal */}
+      {showEditInfoModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-6 overflow-y-auto">
+          <div
+            className="w-full max-w-md bg-white rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden my-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-[#0B1E36] px-6 py-4 flex items-center justify-between text-white">
+              <h3 className="font-black text-sm tracking-tight">Edit Informasi Komunitas</h3>
+              <button
+                type="button"
+                onClick={() => setShowEditInfoModal(false)}
+                className="text-white/80 hover:text-white font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditInfo} className="px-6 py-5 flex flex-col gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-extrabold text-slate-800 uppercase tracking-wider">
+                  NAMA KOMUNITAS
+                </label>
+                <input
+                  type="text"
+                  value={editInfoName}
+                  onChange={(e) => setEditInfoName(e.target.value)}
+                  placeholder="Nama Komunitas"
+                  className="w-full bg-[#E2E5E9]/50 rounded-xl p-2.5 text-xs font-bold text-[#0B1E36] outline-none border border-slate-200 focus:border-[#0B1E36]"
+                  maxLength={50}
+                  required
+                  disabled={savingEditInfo}
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-extrabold text-slate-800 uppercase tracking-wider">
+                  DESKRIPSI
+                </label>
+                <textarea
+                  value={editInfoDescription}
+                  onChange={(e) => setEditInfoDescription(e.target.value)}
+                  placeholder="Deskripsi Komunitas"
+                  className="w-full min-h-[80px] bg-[#E2E5E9]/50 rounded-xl p-2.5 text-xs font-bold text-[#0B1E36] outline-none border border-slate-200 focus:border-[#0B1E36] resize-none"
+                  maxLength={500}
+                  required
+                  disabled={savingEditInfo}
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-extrabold text-slate-800 uppercase tracking-wider">
+                  ATURAN KOMUNITAS
+                </label>
+                <textarea
+                  value={editInfoRules}
+                  onChange={(e) => setEditInfoRules(e.target.value)}
+                  placeholder="Aturan Komunitas"
+                  className="w-full min-h-[80px] bg-[#E2E5E9]/50 rounded-xl p-2.5 text-xs font-bold text-[#0B1E36] outline-none border border-slate-200 focus:border-[#0B1E36] resize-none"
+                  maxLength={1000}
+                  disabled={savingEditInfo}
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-extrabold text-slate-800 uppercase tracking-wider">
+                  TAGS KOMUNITAS
+                </label>
+                <div className="flex flex-wrap gap-1.5 mb-1.5">
+                  {editInfoTags.map((tag, idx) => (
+                    <span key={idx} className="inline-flex items-center gap-1 bg-[#0B1E36] text-white text-[9px] font-extrabold px-2 py-0.5 rounded">
+                      #{tag}
+                      <button
+                        type="button"
+                        onClick={() => setEditInfoTags(editInfoTags.filter((_, i) => i !== idx))}
+                        className="text-white/60 hover:text-white ml-0.5 cursor-pointer text-[8px]"
+                        disabled={savingEditInfo}
+                      >✕</button>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={editInfoTagInput}
+                    onChange={(e) => setEditInfoTagInput(e.target.value.replace(/[^a-zA-Z0-9_]/g, ""))}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === ",") {
+                        e.preventDefault();
+                        const val = editInfoTagInput.trim();
+                        if (val && editInfoTags.length < 10 && !editInfoTags.includes(val)) {
+                          setEditInfoTags([...editInfoTags, val]);
+                          setEditInfoTagInput("");
+                        }
+                      }
+                    }}
+                    placeholder="Tambah tag lalu tekan Enter"
+                    className="flex-1 bg-[#E2E5E9]/50 rounded-xl p-2.5 text-xs font-bold text-[#0B1E36] outline-none border border-slate-200 focus:border-[#0B1E36]"
+                    maxLength={30}
+                    disabled={savingEditInfo || editInfoTags.length >= 10}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const val = editInfoTagInput.trim();
+                      if (val && editInfoTags.length < 10 && !editInfoTags.includes(val)) {
+                        setEditInfoTags([...editInfoTags, val]);
+                        setEditInfoTagInput("");
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-[#0B1E36] text-white text-[10px] font-extrabold rounded-xl cursor-pointer hover:bg-black/90 transition-all shrink-0"
+                    disabled={savingEditInfo || editInfoTags.length >= 10 || !editInfoTagInput.trim()}
+                  >
+                    Tambah
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowEditInfoModal(false)}
+                  disabled={savingEditInfo}
+                  className="flex-1 py-2.5 bg-slate-100 text-[#0B1E36] font-extrabold text-xs rounded-xl hover:bg-slate-200 transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingEditInfo}
+                  className="flex-1 py-2.5 bg-[#0B1E36] text-white font-extrabold text-xs rounded-xl hover:bg-black transition-colors cursor-pointer shadow-md"
+                >
+                  {savingEditInfo ? "Menyimpan..." : "Simpan Perubahan"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
       {/* Menu Modal */}
       {showMenuModal && (
@@ -1407,6 +1835,105 @@ export default function CommunityDetailPage({
                 className="w-full py-3 text-center text-xs font-extrabold text-slate-500 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer mt-1"
               >
                 Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Member Action Confirmation Modal */}
+      {memberActionConfirm && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 px-6">
+          <div
+            className="w-full max-w-sm bg-white rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className={`${
+              memberActionConfirm.type === "kick" ? "bg-red-600" : "bg-[#0B1E36]"
+            } px-6 py-5 flex flex-col items-center`}>
+              <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center mb-3">
+                {memberActionConfirm.type === "kick" ? (
+                  <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                  </svg>
+                ) : (
+                  <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                  </svg>
+                )}
+              </div>
+              <h3 className="text-white font-black text-sm tracking-tight">
+                {memberActionConfirm.type === "kick" ? "Peringatan!" : "Konfirmasi"}
+              </h3>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-5 text-center">
+              <p className="text-sm font-extrabold text-[#0B1E36] leading-relaxed">
+                {memberActionConfirm.type === "kick"
+                  ? `Apakah kamu yakin ingin mengeluarkan ${memberActionConfirm.userName}?`
+                  : memberActionConfirm.type === "promote"
+                    ? `Apakah kamu yakin ingin menjadikan ${memberActionConfirm.userName} sebagai Admin?`
+                    : `Apakah kamu yakin ingin menurunkan ${memberActionConfirm.userName} dari Admin?`}
+              </p>
+              <p className="text-[11px] font-semibold text-slate-400 mt-2 leading-relaxed">
+                {memberActionConfirm.type === "kick"
+                  ? "Anggota yang dikeluarkan perlu bergabung kembali untuk mengakses komunitas."
+                  : memberActionConfirm.type === "promote"
+                    ? "Admin dapat mengelola anggota dan konten komunitas."
+                    : "Anggota yang diturunkan tidak dapat mengelola komunitas lagi."}
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="px-6 pb-5 flex gap-3">
+              <button
+                onClick={() => setMemberActionConfirm(null)}
+                disabled={processingMemberAction}
+                className="flex-1 py-3 bg-slate-100 text-[#0B1E36] font-extrabold text-xs rounded-xl hover:bg-slate-200 transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                onClick={async () => {
+                  setProcessingMemberAction(true);
+                  try {
+                    if (memberActionConfirm.type === "kick") {
+                      await handleKickMember(memberActionConfirm.userId);
+                    } else {
+                      await handleUpdateMemberRole(
+                        memberActionConfirm.userId,
+                        memberActionConfirm.type === "promote" ? "ADMIN" : "MEMBER"
+                      );
+                    }
+                  } finally {
+                    setProcessingMemberAction(false);
+                    setMemberActionConfirm(null);
+                  }
+                }}
+                disabled={processingMemberAction}
+                className={`flex-1 py-3 ${
+                  memberActionConfirm.type === "kick"
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-[#0B1E36] hover:bg-black"
+                } text-white font-extrabold text-xs rounded-xl transition-colors cursor-pointer shadow-md`}
+              >
+                {processingMemberAction ? (
+                  <span className="flex items-center justify-center gap-1.5">
+                    <svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Memproses...
+                  </span>
+                ) : memberActionConfirm.type === "kick" ? (
+                  "Ya, Keluarkan"
+                ) : memberActionConfirm.type === "promote" ? (
+                  "Ya, Jadikan Admin"
+                ) : (
+                  "Ya, Turunkan"
+                )}
               </button>
             </div>
           </div>
@@ -1517,6 +2044,13 @@ export default function CommunityDetailPage({
             </div>
           </div>
         </div>
+      )}
+
+      {previewImageUrl && (
+        <ImageLightbox
+          src={previewImageUrl}
+          onClose={() => setPreviewImageUrl(null)}
+        />
       )}
     </div>
   );

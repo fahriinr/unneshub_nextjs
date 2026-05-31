@@ -1,4 +1,6 @@
+import { useState } from "react";
 import Link from "next/link";
+import ImageLightbox from "./ImageLightbox";
 
 export interface CommunityDetails {
   id: string;
@@ -17,6 +19,7 @@ export interface CommunityDetails {
   onlineCount: number;
   coverImage?: string | null;
   community_image_url?: string | null;
+  creatorId?: string;
   permissions: {
     canEdit: boolean;
     canDelete: boolean;
@@ -39,6 +42,8 @@ export default function CommunityVisitorView({
   successToast,
   handleJoinCommunity,
 }: CommunityVisitorViewProps) {
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+
   return (
     <div className="flex-1 w-full bg-white flex flex-col min-h-screen">
       {/* Toast Notification */}
@@ -77,7 +82,8 @@ export default function CommunityVisitorView({
               <img
                 src={community.coverImage || community.community_image_url || ""}
                 alt={community.name}
-                className="w-full h-full object-cover"
+                onClick={() => setPreviewImageUrl(community.coverImage || community.community_image_url || null)}
+                className="w-full h-full object-cover cursor-zoom-in hover:brightness-95 transition-all"
               />
             ) : (
               <div className={`w-full h-full ${community.avatarColor} flex items-center justify-center font-extrabold text-xl`}>
@@ -195,6 +201,13 @@ export default function CommunityVisitorView({
           )}
         </button>
       </div>
+
+      {previewImageUrl && (
+        <ImageLightbox
+          src={previewImageUrl}
+          onClose={() => setPreviewImageUrl(null)}
+        />
+      )}
     </div>
   );
 }
