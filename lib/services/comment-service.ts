@@ -79,7 +79,7 @@ async function enrichCommentData<T extends { userId: string; postId: string }>(
   const isAuthor = comment.userId === currentUser.id;
   const isGlobalAdmin = currentUser.role === "GLOBAL_ADMIN";
 
-  // Fetch the post's community
+  // Fetch the post's community to check admin/owner status
   const post = await prisma.post.findUnique({
     where: { id: comment.postId },
     select: { communityId: true },
@@ -140,7 +140,7 @@ async function enrichCommentsList(
   const currentUserId = currentUser.id;
   const isGlobalAdmin = currentUser.role === "GLOBAL_ADMIN";
 
-  // Fetch community details
+  // Fetch community details for admin/owner check
   const post = await prisma.post.findUnique({
     where: { id: postId },
     select: { communityId: true },
@@ -383,14 +383,53 @@ export async function deleteComment(id: string): Promise<Prisma.BatchPayload | {
 
   const comment = await prisma.comment.findUnique({
     where: { id },
+    select: { id: true, userId: true, postId: true },
   });
 
   if (!comment) {
     throw new Error("NotFound: Comment not found");
   }
 
-  if (comment.userId !== user.id) {
-    throw new Error("Forbidden: You are not the owner of this comment");
+  const isAuthor = comment.userId === user.id;
+
+  if (!isAuthor) {
+    // Check if user is community admin/owner or global admin
+    const isGlobalAdmin = user.role === "GLOBAL_ADMIN";
+
+    let isCommunityAdmin = false;
+    const post = await prisma.post.findUnique({
+      where: { id: comment.postId },
+      select: { communityId: true },
+    });
+
+    if (post) {
+      const community = await prisma.community.findUnique({
+        where: { id: post.communityId },
+        select: { creatorId: true },
+      });
+      const isOwner = community ? community.creatorId === user.id : false;
+
+      let isAdmin = isOwner;
+      if (community && !isOwner) {
+        const membership = await prisma.communityMember.findUnique({
+          where: {
+            communityId_userId: {
+              communityId: post.communityId,
+              userId: user.id,
+            },
+          },
+          select: { role: true, status: true },
+        });
+        if (membership && membership.status === "APPROVED" && membership.role === "ADMIN") {
+          isAdmin = true;
+        }
+      }
+      isCommunityAdmin = isAdmin;
+    }
+
+    if (!isCommunityAdmin && !isGlobalAdmin) {
+      throw new Error("Forbidden: You are not the owner of this comment");
+    }
   }
 
   await prisma.comment.delete({

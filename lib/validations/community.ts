@@ -30,6 +30,7 @@ export const createCommunitySchema = z.object({
     .string()
     .url("Invalid cover image URL format")
     .optional()
+    .nullable()
     .or(z.literal("")),
 });
 
