@@ -1543,90 +1543,159 @@ export default function CommunityDetailPage({
             })()}
           </div>
         )}
+      </div>
 
-        {activeTab === "Anggota" && (
-          <div className="bg-white border border-slate-100 rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
-            <h2 className="text-xs font-black text-[#0B1E36] uppercase tracking-wider">
-              Daftar Anggota
-            </h2>
-            {loadingMembers ? (
-              <div className="flex flex-col gap-3 animate-pulse">
-                {[1, 2, 3].map((i) => (
+      {activeTab === "Anggota" && (
+        <div className="bg-white border border-slate-100 rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
+          <h2 className="text-xs font-black text-[#0B1E36] uppercase tracking-wider">
+            Daftar Anggota
+          </h2>
+          {loadingMembers ? (
+            <div className="flex flex-col gap-3 animate-pulse">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-2.5 pb-2 border-b border-slate-50"
+                >
+                  <div className="w-7 h-7 rounded-full bg-slate-200 shrink-0"></div>
+                  <div className="h-3 w-32 bg-slate-200 rounded"></div>
+                </div>
+              ))}
+            </div>
+          ) : membersList.length === 0 ? (
+            <p className="text-xs font-bold text-slate-400">
+              Tidak ada anggota yang ditemukan.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {membersList.map((m: MemberApiData, i: number) => {
+                const name = m.user?.name || "Mahasiswa";
+                return (
                   <div
-                    key={i}
-                    className="flex items-center gap-2.5 pb-2 border-b border-slate-50"
+                    key={m.id || i}
+                    className="flex items-center justify-between pb-2 border-b border-slate-50 text-xs font-bold text-[#0B1E36]"
                   >
-                    <div className="w-7 h-7 rounded-full bg-slate-200 shrink-0"></div>
-                    <div className="h-3 w-32 bg-slate-200 rounded"></div>
-                  </div>
-                ))}
-              </div>
-            ) : membersList.length === 0 ? (
-              <p className="text-xs font-bold text-slate-400">
-                Tidak ada anggota yang ditemukan.
-              </p>
-            ) : (
-              <div className="flex flex-col gap-3">
-                {membersList.map((m: MemberApiData, i: number) => {
-                  const name = m.user?.name || "Mahasiswa";
-                  return (
-                    <div
-                      key={m.id || i}
-                      className="flex items-center justify-between pb-2 border-b border-slate-50 text-xs font-bold text-[#0B1E36]"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center font-bold text-[10px] border border-slate-200 text-slate-500 shrink-0">
-                          {name.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="flex flex-col min-w-0">
-                          <span className="truncate">{name}</span>
-                          {m.role === "ADMIN" && (
-                            <span className="text-[8px] font-extrabold text-[#F2C010] bg-[#0B1E36] px-1.5 py-0.5 rounded w-max mt-0.5 uppercase tracking-wide">
-                              Admin
-                            </span>
-                          )}
-                        </div>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center font-bold text-[10px] border border-slate-200 text-slate-500 shrink-0">
+                        {name.charAt(0).toUpperCase()}
                       </div>
-                      {community.isJoined && (community.permissions.isCommunityOwner || community.permissions.isCommunityAdmin) && (
-                        <div className="flex items-center gap-2 shrink-0">
-                          {community.permissions.isCommunityOwner && m.user.email !== user.email && (
+                      <div className="flex flex-col min-w-0">
+                        <span className="truncate">{name}</span>
+                        {m.role === "ADMIN" && (
+                          <span className="text-[8px] font-extrabold text-[#F2C010] bg-[#0B1E36] px-1.5 py-0.5 rounded w-max mt-0.5 uppercase tracking-wide">
+                            Admin
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {community.isJoined && (community.permissions.isCommunityOwner || community.permissions.isCommunityAdmin) && (
+                      <div className="flex items-center gap-2 shrink-0">
+                        {community.permissions.isCommunityOwner && m.user.email !== user.email && (
+                          <button
+                            type="button"
+                            onClick={() => setMemberActionConfirm({
+                              type: m.role === "ADMIN" ? "demote" : "promote",
+                              userId: m.user.id,
+                              userName: name,
+                            })}
+                            className="px-2 py-1 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded text-[9px] font-black cursor-pointer transition-all"
+                          >
+                            {m.role === "ADMIN" ? "Demote" : "Promote"}
+                          </button>
+                        )}
+                        {m.user.email !== user.email && m.user.id !== community.creatorId && (
+                          (community.permissions.isCommunityOwner || (community.permissions.isCommunityAdmin && m.role !== "ADMIN")) && (
                             <button
                               type="button"
                               onClick={() => setMemberActionConfirm({
-                                type: m.role === "ADMIN" ? "demote" : "promote",
+                                type: "kick",
                                 userId: m.user.id,
                                 userName: name,
                               })}
-                              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded text-[9px] font-black cursor-pointer transition-all"
+                              className="px-2 py-1 bg-red-50 hover:bg-red-100 border border-red-200 rounded text-[9px] font-black cursor-pointer transition-all text-red-600"
                             >
-                              {m.role === "ADMIN" ? "Demote" : "Promote"}
+                              Kick
                             </button>
-                          )}
-                          {m.user.email !== user.email && m.user.id !== community.creatorId && (
-                            (community.permissions.isCommunityOwner || (community.permissions.isCommunityAdmin && m.role !== "ADMIN")) && (
-                              <button
-                                type="button"
-                                onClick={() => setMemberActionConfirm({
-                                  type: "kick",
-                                  userId: m.user.id,
-                                  userName: name,
-                                })}
-                                className="px-2 py-1 bg-red-50 hover:bg-red-100 border border-red-200 rounded text-[9px] font-black cursor-pointer transition-all text-red-600"
-                              >
-                                Kick
-                              </button>
-                            )
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
+                          )
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+
+    {/* Desktop Right Sidebar: Permanent Info panel */}
+    <div className="hidden md:flex md:col-span-1 flex-col gap-5 sticky top-24">
+      {/* 1. Tentang Komunitas Card */}
+      <div className="bg-white border border-slate-100 rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
+        <h2 className="text-xs font-black text-[#0B1E36] uppercase tracking-wider">
+          Tentang Komunitas
+        </h2>
+        <p className="text-xs font-semibold text-slate-500 leading-relaxed">
+          {community.description}
+        </p>
       </div>
+
+      {/* 2. Aturan Komunitas Card */}
+      <div className="bg-white border border-slate-100 rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
+        <h2 className="text-xs font-black text-[#0B1E36] uppercase tracking-wider">
+          Aturan Komunitas
+        </h2>
+        <p className="text-xs font-semibold text-slate-500 leading-relaxed">
+          {(() => {
+            const { rules: cleanRules } = parseRulesAndTags(
+              community.rules || "",
+            );
+            return (
+              cleanRules ||
+              "Selamat datang! Patuhi etika akademik, hormati sesama mahasiswa, dan gunakan wadah ini untuk kolaborasi yang sehat."
+            );
+          })()}
+        </p>
+      </div>
+
+      {/* 3. Tag Komunitas Card (Member View) matching mockup colors exactly */}
+      {(() => {
+        const displayTags = (community.tags && community.tags.length > 0)
+          ? community.tags.map(t => t.startsWith("#") ? t : `#${t}`)
+          : ["#Robotika", "#AI", "#IoT"];
+
+        return (
+          <div className="bg-white border-2 border-[#0B1E36] rounded-2xl p-5 shadow-[4px_4px_0px_0px_#0B1E36] flex flex-col gap-4 text-center select-none">
+            <h2 className="text-sm font-black text-[#0B1E36] uppercase tracking-wider">
+              Tag Komunitas
+            </h2>
+            <div className="flex flex-wrap justify-center gap-2.5">
+              {displayTags.map((tag, idx) => {
+                const tagColors = [
+                  "bg-[#FEF08A] text-yellow-900 border-yellow-300",
+                  "bg-[#BFDBFE] text-blue-900 border-blue-300",
+                  "bg-[#E9D5FF] text-purple-900 border-purple-300",
+                  "bg-[#A7F3D0] text-emerald-900 border-emerald-300",
+                  "bg-[#FECDD3] text-rose-900 border-rose-300",
+                ];
+                const colorClass = tagColors[idx % tagColors.length];
+                return (
+                  <span
+                    key={tag}
+                    className={`px-4.5 py-1.5 rounded-full text-xs font-black border shadow-sm ${colorClass}`}
+                  >
+                    {tag}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+    </div>
+  </div>
+</div>
 
       {/* FAB button in bottom right corner matching Screen 1/2 */}
       {community.isJoined && activeTab === "Postingan" && (
