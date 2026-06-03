@@ -185,7 +185,7 @@ export default function JoinCommunityPage() {
 
       {/* Community List */}
       <div className="flex-1 px-4 w-full pb-24">
-        <div className="flex flex-col gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {communities.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-xs font-bold text-slate-400">
