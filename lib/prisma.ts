@@ -15,6 +15,9 @@ const pool =
     max: 4, // Prevent Supabase Pooler port exhaustion
     idleTimeoutMillis: 15000, // Release connections quickly on idle functions
     connectionTimeoutMillis: 2000,
+    ssl: {
+      rejectUnauthorized: false,
+    },
   });
 
 if (process.env.NODE_ENV !== "production") {
