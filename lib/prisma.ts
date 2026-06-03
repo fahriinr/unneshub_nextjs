@@ -8,16 +8,13 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 // 1. Maintain a single connection pooler instance across hot reloads & scaling
-const hasSsl = process.env.DATABASE_URL?.includes("sslmode=require") || process.env.DATABASE_URL?.includes("supabase");
-
 const pool =
   globalForPrisma.pgPool ||
   new Pool({
     connectionString: process.env.DATABASE_URL,
-    max: 4,                  // Prevent Supabase Pooler port exhaustion
+    max: 4, // Prevent Supabase Pooler port exhaustion
     idleTimeoutMillis: 15000, // Release connections quickly on idle functions
     connectionTimeoutMillis: 2000,
-    ssl: hasSsl ? { rejectUnauthorized: false } : undefined,
   });
 
 if (process.env.NODE_ENV !== "production") {
