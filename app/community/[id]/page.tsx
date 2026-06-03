@@ -190,6 +190,18 @@ export default function CommunityDetailPage({
     }
   }, [user, loading, router]);
 
+  // Resize listener to automatically reset active tab to "Postingan" if window becomes desktop width while on "Info"
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768 && activeTab === "Info") {
+        setActiveTab("Postingan");
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    handleResize();
+    return () => window.removeEventListener("resize", handleResize);
+  }, [activeTab]);
+
   // Load Community & Posts
   useEffect(() => {
     let active = true;
@@ -1144,6 +1156,8 @@ export default function CommunityDetailPage({
                   key={tab}
                   onClick={() => setActiveTab(tab)}
                   className={`flex-1 text-center py-3 text-xs font-black transition-all cursor-pointer ${
+                    tab === "Info" ? "md:hidden" : ""
+                  } ${
                     isTabActive
                       ? "text-[#0B1E36] border-b-4 border-[#F2C010]"
                       : "text-slate-400 hover:text-[#0B1E36]"
@@ -1164,6 +1178,8 @@ export default function CommunityDetailPage({
                   key={tab}
                   onClick={() => setActiveTab(tab)}
                   className={`flex-1 text-center py-3 text-xs font-black transition-all cursor-pointer ${
+                    tab === "Info" ? "md:hidden" : ""
+                  } ${
                     isTabActive
                       ? "text-[#0B1E36] border-b-4 border-[#F2C010]"
                       : "text-slate-400 hover:text-[#0B1E36]"
@@ -1178,95 +1194,98 @@ export default function CommunityDetailPage({
       </div>
 
       {/* Layout Content Container */}
-      <div className="flex-1 w-full max-w-lg mx-auto px-4 py-5 flex flex-col gap-5 pb-28 overflow-y-auto">
-        {activeTab === "Postingan" && (
-          <>
-            {/* 4. Post Editor exactly matching Screen 1/2 & Screen 3 */}
-            <form
-              onSubmit={handleCreatePost}
-              className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col gap-3 shadow-sm"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  {/* Avatar circle - changes based on anonymous toggle */}
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center font-extrabold text-xs shrink-0 ${
-                      isAnonymous
-                        ? "bg-slate-600 text-white border border-slate-500"
-                        : "bg-[#F2C010] text-[#0B1E36] border border-amber-300"
-                    }`}
-                  >
-                    {isAnonymous ? "?" : user.name.charAt(0).toUpperCase()}
+      <div className="flex-1 w-full max-w-lg md:max-w-4xl lg:max-w-6xl mx-auto px-4 py-5 pb-28 overflow-y-auto">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+          {/* Main Column */}
+          <div className="md:col-span-2 flex flex-col gap-5">
+            {activeTab === "Postingan" && (
+              <>
+                {/* 4. Post Editor exactly matching Screen 1/2 & Screen 3 */}
+                <form
+                  onSubmit={handleCreatePost}
+                  className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col gap-3 shadow-sm"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {/* Avatar circle - changes based on anonymous toggle */}
+                      <div
+                        className={`w-8 h-8 rounded-full flex items-center justify-center font-extrabold text-xs shrink-0 ${
+                          isAnonymous
+                            ? "bg-slate-600 text-white border border-slate-500"
+                            : "bg-[#F2C010] text-[#0B1E36] border border-amber-300"
+                        }`}
+                      >
+                        {isAnonymous ? "?" : user.name.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-xs font-extrabold text-[#0B1E36]">
+                        {isAnonymous ? "Anonymous" : user.name}
+                      </span>
+                    </div>
+
+                    {/* Interactive Toggle matching Screen 1/2 */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-extrabold text-slate-500">
+                        Anonim
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIsAnonymous(!isAnonymous)}
+                        className={`w-11 h-6 rounded-full p-0.5 transition-colors cursor-pointer outline-none relative ${
+                          isAnonymous ? "bg-[#0B1E36]" : "bg-slate-200"
+                        }`}
+                      >
+                        <div
+                          className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform ${
+                            isAnonymous ? "translate-x-5" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
+                    </div>
                   </div>
-                  <span className="text-xs font-extrabold text-[#0B1E36]">
-                    {isAnonymous ? "Anonymous" : user.name}
-                  </span>
-                </div>
 
-                {/* Interactive Toggle matching Screen 1/2 */}
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-extrabold text-slate-500">
-                    Anonim
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setIsAnonymous(!isAnonymous)}
-                    className={`w-11 h-6 rounded-full p-0.5 transition-colors cursor-pointer outline-none relative ${
-                      isAnonymous ? "bg-[#0B1E36]" : "bg-slate-200"
-                    }`}
-                  >
-                    <div
-                      className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform ${
-                        isAnonymous ? "translate-x-5" : "translate-x-0"
-                      }`}
-                    />
-                  </button>
-                </div>
-              </div>
+                  {/* Switch button type choose between Post and Event */}
+                  {isAdmin && (
+                    <div className="flex bg-slate-100 rounded-xl p-1 border border-slate-200 select-none">
+                      <button
+                        type="button"
+                        onClick={() => setComposerType("post")}
+                        className={`flex-1 text-center py-2 text-[10px] font-black uppercase rounded-lg transition-all cursor-pointer ${
+                          composerType === "post"
+                            ? "bg-[#0B1E36] text-white shadow-sm"
+                            : "text-slate-400 hover:text-[#0B1E36]"
+                        }`}
+                      >
+                        Post
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setComposerType("event")}
+                        className={`flex-1 text-center py-2 text-[10px] font-black uppercase rounded-lg transition-all cursor-pointer ${
+                          composerType === "event"
+                            ? "bg-[#0B1E36] text-white shadow-sm"
+                            : "text-slate-400 hover:text-[#0B1E36]"
+                        }`}
+                      >
+                        Event
+                      </button>
+                    </div>
+                  )}
 
-              {/* Switch button type choose between Post and Event */}
-              {isAdmin && (
-                <div className="flex bg-slate-100 rounded-xl p-1 border border-slate-200 select-none">
-                  <button
-                    type="button"
-                    onClick={() => setComposerType("post")}
-                    className={`flex-1 text-center py-2 text-[10px] font-black uppercase rounded-lg transition-all cursor-pointer ${
-                      composerType === "post"
-                        ? "bg-[#0B1E36] text-white shadow-sm"
-                        : "text-slate-400 hover:text-[#0B1E36]"
-                    }`}
-                  >
-                    Post
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setComposerType("event")}
-                    className={`flex-1 text-center py-2 text-[10px] font-black uppercase rounded-lg transition-all cursor-pointer ${
-                      composerType === "event"
-                        ? "bg-[#0B1E36] text-white shadow-sm"
-                        : "text-slate-400 hover:text-[#0B1E36]"
-                    }`}
-                  >
-                    Event
-                  </button>
-                </div>
-              )}
-
-              {composerType === "event" ? (
-                <div className="flex flex-col gap-3.5 border-t border-slate-100 pt-2.5">
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[9px] font-black text-slate-400 pl-1 uppercase tracking-wider">
-                      Nama Event
-                    </label>
-                    <input
-                      type="text"
-                      value={eventTitle}
-                      onChange={(e) => setEventTitle(e.target.value)}
-                      placeholder="Contoh: Webinar UI/UX Beginner"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-[#0B1E36] outline-none placeholder-[#8FA0AF] focus:border-[#0B1E36]"
-                      required
-                    />
-                  </div>
+                  {composerType === "event" ? (
+                    <div className="flex flex-col gap-3.5 border-t border-slate-100 pt-2.5">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[9px] font-black text-slate-400 pl-1 uppercase tracking-wider">
+                          Nama Event
+                        </label>
+                        <input
+                          type="text"
+                          value={eventTitle}
+                          onChange={(e) => setEventTitle(e.target.value)}
+                          placeholder="Contoh: Webinar UI/UX Beginner"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-[#0B1E36] outline-none placeholder-[#8FA0AF] focus:border-[#0B1E36]"
+                          required
+                        />
+                      </div>
 
                   <div className="flex gap-2.5">
                     <div className="flex flex-col gap-1.5 flex-1">
@@ -1307,29 +1326,29 @@ export default function CommunityDetailPage({
                     />
                   </div>
 
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[9px] font-black text-slate-400 pl-1 uppercase tracking-wider">
-                      Deskripsi Event (Opsional)
-                    </label>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[9px] font-black text-slate-400 pl-1 uppercase tracking-wider">
+                          Deskripsi Event (Opsional)
+                        </label>
+                        <textarea
+                          value={postText}
+                          onChange={(e) => setPostText(e.target.value)}
+                          placeholder="Tulis deskripsi atau detail event..."
+                          className="w-full min-h-[60px] py-2 text-xs font-bold text-[#0B1E36] placeholder-[#8FA0AF] outline-none resize-none"
+                          maxLength={1000}
+                        />
+                      </div>
+                    </div>
+                  ) : (
                     <textarea
                       value={postText}
                       onChange={(e) => setPostText(e.target.value)}
-                      placeholder="Tulis deskripsi atau detail event..."
-                      className="w-full min-h-[60px] py-2 text-xs font-bold text-[#0B1E36] placeholder-[#8FA0AF] outline-none resize-none"
+                      placeholder="Apa yang ingin kamu bagikan?"
+                      className="w-full min-h-[85px] py-2 text-xs font-bold text-[#0B1E36] placeholder-[#8FA0AF] outline-none resize-none"
                       maxLength={1000}
+                      required
                     />
-                  </div>
-                </div>
-              ) : (
-                <textarea
-                  value={postText}
-                  onChange={(e) => setPostText(e.target.value)}
-                  placeholder="Apa yang ingin kamu bagikan?"
-                  className="w-full min-h-[85px] py-2 text-xs font-bold text-[#0B1E36] placeholder-[#8FA0AF] outline-none resize-none"
-                  maxLength={1000}
-                  required
-                />
-              )}
+                  )}
 
               {/* Interactive selected image preview block (max 5MB) */}
               {postImage && (
@@ -1353,56 +1372,56 @@ export default function CommunityDetailPage({
                 </div>
               )}
 
-              {/* Bottom Actions Bar */}
-              <div className="flex justify-between items-center border-t border-slate-100 pt-2.5 mt-1">
-                <div className="flex items-center gap-3 text-slate-400">
-                  {/* Photo icon triggering custom direct upload (max 5MB) */}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handlePostImageChange}
-                    className="hidden"
-                    id="post-photo-selector"
-                  />
-                  <label
-                    htmlFor="post-photo-selector"
-                    className="hover:text-[#0B1E36] transition-colors cursor-pointer p-0.5"
-                  >
-                    <svg
-                      className="w-5 h-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2.5}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  {/* Bottom Actions Bar */}
+                  <div className="flex justify-between items-center border-t border-slate-100 pt-2.5 mt-1">
+                    <div className="flex items-center gap-3 text-slate-400">
+                      {/* Photo icon triggering custom direct upload (max 5MB) */}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handlePostImageChange}
+                        className="hidden"
+                        id="post-photo-selector"
                       />
-                    </svg>
-                  </label>
-                  {/* Comment icon matching Screen 1/2 */}
-                  <button
-                    type="button"
-                    onClick={() => triggerToast("Tambah tag diskusi!")}
-                    className="hover:text-[#0B1E36] transition-colors"
-                  >
-                    <svg
-                      className="w-5 h-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2.5}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
-                      />
-                    </svg>
-                  </button>
-                </div>
+                      <label
+                        htmlFor="post-photo-selector"
+                        className="hover:text-[#0B1E36] transition-colors cursor-pointer p-0.5"
+                      >
+                        <svg
+                          className="w-5 h-5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2.5}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                          />
+                        </svg>
+                      </label>
+                      {/* Comment icon matching Screen 1/2 */}
+                      <button
+                        type="button"
+                        onClick={() => triggerToast("Tambah tag diskusi!")}
+                        className="hover:text-[#0B1E36] transition-colors"
+                      >
+                        <svg
+                          className="w-5 h-5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2.5}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
+                          />
+                        </svg>
+                      </button>
+                    </div>
 
                  <button
                   type="submit"
@@ -1456,36 +1475,37 @@ export default function CommunityDetailPage({
           </>
         )}
 
-        {/* Info / Anggota Tabs contents */}
-        {activeTab === "Info" && (
-          <div className="flex flex-col gap-5">
-            {/* 1. Tentang Komunitas Card */}
-            <div className="bg-white border border-slate-100 rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
-              <h2 className="text-xs font-black text-[#0B1E36] uppercase tracking-wider">
-                Tentang Komunitas
-              </h2>
-              <p className="text-xs font-semibold text-slate-500 leading-relaxed">
-                {community.description}
-              </p>
-            </div>
+            {/* Info tab on mobile */}
+            <div className="md:hidden">
+              {activeTab === "Info" && (
+                <div className="flex flex-col gap-5">
+                  {/* 1. Tentang Komunitas Card */}
+                  <div className="bg-white border border-slate-100 rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
+                    <h2 className="text-xs font-black text-[#0B1E36] uppercase tracking-wider">
+                      Tentang Komunitas
+                    </h2>
+                    <p className="text-xs font-semibold text-slate-500 leading-relaxed">
+                      {community.description}
+                    </p>
+                  </div>
 
-            {/* 2. Aturan Komunitas Card */}
-            <div className="bg-white border border-slate-100 rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
-              <h2 className="text-xs font-black text-[#0B1E36] uppercase tracking-wider">
-                Aturan Komunitas
-              </h2>
-              <p className="text-xs font-semibold text-slate-500 leading-relaxed">
-                {(() => {
-                  const { rules: cleanRules } = parseRulesAndTags(
-                    community.rules || "",
-                  );
-                  return (
-                    cleanRules ||
-                    "Selamat datang! Patuhi etika akademik, hormati sesama mahasiswa, dan gunakan wadah ini untuk kolaborasi yang sehat."
-                  );
-                })()}
-              </p>
-            </div>
+                  {/* 2. Aturan Komunitas Card */}
+                  <div className="bg-white border border-slate-100 rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
+                    <h2 className="text-xs font-black text-[#0B1E36] uppercase tracking-wider">
+                      Aturan Komunitas
+                    </h2>
+                    <p className="text-xs font-semibold text-slate-500 leading-relaxed">
+                      {(() => {
+                        const { rules: cleanRules } = parseRulesAndTags(
+                          community.rules || "",
+                        );
+                        return (
+                          cleanRules ||
+                          "Selamat datang! Patuhi etika akademik, hormati sesama mahasiswa, dan gunakan wadah ini untuk kolaborasi yang sehat."
+                        );
+                      })()}
+                    </p>
+                  </div>
 
             {/* 3. Tag Komunitas Card (Member View) matching your mockup colors exactly */}
             {(() => {
@@ -1523,90 +1543,159 @@ export default function CommunityDetailPage({
             })()}
           </div>
         )}
+      </div>
 
-        {activeTab === "Anggota" && (
-          <div className="bg-white border border-slate-100 rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
-            <h2 className="text-xs font-black text-[#0B1E36] uppercase tracking-wider">
-              Daftar Anggota
-            </h2>
-            {loadingMembers ? (
-              <div className="flex flex-col gap-3 animate-pulse">
-                {[1, 2, 3].map((i) => (
+      {activeTab === "Anggota" && (
+        <div className="bg-white border border-slate-100 rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
+          <h2 className="text-xs font-black text-[#0B1E36] uppercase tracking-wider">
+            Daftar Anggota
+          </h2>
+          {loadingMembers ? (
+            <div className="flex flex-col gap-3 animate-pulse">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-2.5 pb-2 border-b border-slate-50"
+                >
+                  <div className="w-7 h-7 rounded-full bg-slate-200 shrink-0"></div>
+                  <div className="h-3 w-32 bg-slate-200 rounded"></div>
+                </div>
+              ))}
+            </div>
+          ) : membersList.length === 0 ? (
+            <p className="text-xs font-bold text-slate-400">
+              Tidak ada anggota yang ditemukan.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {membersList.map((m: MemberApiData, i: number) => {
+                const name = m.user?.name || "Mahasiswa";
+                return (
                   <div
-                    key={i}
-                    className="flex items-center gap-2.5 pb-2 border-b border-slate-50"
+                    key={m.id || i}
+                    className="flex items-center justify-between pb-2 border-b border-slate-50 text-xs font-bold text-[#0B1E36]"
                   >
-                    <div className="w-7 h-7 rounded-full bg-slate-200 shrink-0"></div>
-                    <div className="h-3 w-32 bg-slate-200 rounded"></div>
-                  </div>
-                ))}
-              </div>
-            ) : membersList.length === 0 ? (
-              <p className="text-xs font-bold text-slate-400">
-                Tidak ada anggota yang ditemukan.
-              </p>
-            ) : (
-              <div className="flex flex-col gap-3">
-                {membersList.map((m: MemberApiData, i: number) => {
-                  const name = m.user?.name || "Mahasiswa";
-                  return (
-                    <div
-                      key={m.id || i}
-                      className="flex items-center justify-between pb-2 border-b border-slate-50 text-xs font-bold text-[#0B1E36]"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center font-bold text-[10px] border border-slate-200 text-slate-500 shrink-0">
-                          {name.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="flex flex-col min-w-0">
-                          <span className="truncate">{name}</span>
-                          {m.role === "ADMIN" && (
-                            <span className="text-[8px] font-extrabold text-[#F2C010] bg-[#0B1E36] px-1.5 py-0.5 rounded w-max mt-0.5 uppercase tracking-wide">
-                              Admin
-                            </span>
-                          )}
-                        </div>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center font-bold text-[10px] border border-slate-200 text-slate-500 shrink-0">
+                        {name.charAt(0).toUpperCase()}
                       </div>
-                      {community.isJoined && (community.permissions.isCommunityOwner || community.permissions.isCommunityAdmin) && (
-                        <div className="flex items-center gap-2 shrink-0">
-                          {community.permissions.isCommunityOwner && m.user.email !== user.email && (
+                      <div className="flex flex-col min-w-0">
+                        <span className="truncate">{name}</span>
+                        {m.role === "ADMIN" && (
+                          <span className="text-[8px] font-extrabold text-[#F2C010] bg-[#0B1E36] px-1.5 py-0.5 rounded w-max mt-0.5 uppercase tracking-wide">
+                            Admin
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {community.isJoined && (community.permissions.isCommunityOwner || community.permissions.isCommunityAdmin) && (
+                      <div className="flex items-center gap-2 shrink-0">
+                        {community.permissions.isCommunityOwner && m.user.email !== user.email && (
+                          <button
+                            type="button"
+                            onClick={() => setMemberActionConfirm({
+                              type: m.role === "ADMIN" ? "demote" : "promote",
+                              userId: m.user.id,
+                              userName: name,
+                            })}
+                            className="px-2 py-1 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded text-[9px] font-black cursor-pointer transition-all"
+                          >
+                            {m.role === "ADMIN" ? "Demote" : "Promote"}
+                          </button>
+                        )}
+                        {m.user.email !== user.email && m.user.id !== community.creatorId && (
+                          (community.permissions.isCommunityOwner || (community.permissions.isCommunityAdmin && m.role !== "ADMIN")) && (
                             <button
                               type="button"
                               onClick={() => setMemberActionConfirm({
-                                type: m.role === "ADMIN" ? "demote" : "promote",
+                                type: "kick",
                                 userId: m.user.id,
                                 userName: name,
                               })}
-                              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded text-[9px] font-black cursor-pointer transition-all"
+                              className="px-2 py-1 bg-red-50 hover:bg-red-100 border border-red-200 rounded text-[9px] font-black cursor-pointer transition-all text-red-600"
                             >
-                              {m.role === "ADMIN" ? "Demote" : "Promote"}
+                              Kick
                             </button>
-                          )}
-                          {m.user.email !== user.email && m.user.id !== community.creatorId && (
-                            (community.permissions.isCommunityOwner || (community.permissions.isCommunityAdmin && m.role !== "ADMIN")) && (
-                              <button
-                                type="button"
-                                onClick={() => setMemberActionConfirm({
-                                  type: "kick",
-                                  userId: m.user.id,
-                                  userName: name,
-                                })}
-                                className="px-2 py-1 bg-red-50 hover:bg-red-100 border border-red-200 rounded text-[9px] font-black cursor-pointer transition-all text-red-600"
-                              >
-                                Kick
-                              </button>
-                            )
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
+                          )
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+
+    {/* Desktop Right Sidebar: Permanent Info panel */}
+    <div className="hidden md:flex md:col-span-1 flex-col gap-5 sticky top-24">
+      {/* 1. Tentang Komunitas Card */}
+      <div className="bg-white border border-slate-100 rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
+        <h2 className="text-xs font-black text-[#0B1E36] uppercase tracking-wider">
+          Tentang Komunitas
+        </h2>
+        <p className="text-xs font-semibold text-slate-500 leading-relaxed">
+          {community.description}
+        </p>
       </div>
+
+      {/* 2. Aturan Komunitas Card */}
+      <div className="bg-white border border-slate-100 rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
+        <h2 className="text-xs font-black text-[#0B1E36] uppercase tracking-wider">
+          Aturan Komunitas
+        </h2>
+        <p className="text-xs font-semibold text-slate-500 leading-relaxed">
+          {(() => {
+            const { rules: cleanRules } = parseRulesAndTags(
+              community.rules || "",
+            );
+            return (
+              cleanRules ||
+              "Selamat datang! Patuhi etika akademik, hormati sesama mahasiswa, dan gunakan wadah ini untuk kolaborasi yang sehat."
+            );
+          })()}
+        </p>
+      </div>
+
+      {/* 3. Tag Komunitas Card (Member View) matching mockup colors exactly */}
+      {(() => {
+        const displayTags = (community.tags && community.tags.length > 0)
+          ? community.tags.map(t => t.startsWith("#") ? t : `#${t}`)
+          : ["#Robotika", "#AI", "#IoT"];
+
+        return (
+          <div className="bg-white border-2 border-[#0B1E36] rounded-2xl p-5 shadow-[4px_4px_0px_0px_#0B1E36] flex flex-col gap-4 text-center select-none">
+            <h2 className="text-sm font-black text-[#0B1E36] uppercase tracking-wider">
+              Tag Komunitas
+            </h2>
+            <div className="flex flex-wrap justify-center gap-2.5">
+              {displayTags.map((tag, idx) => {
+                const tagColors = [
+                  "bg-[#FEF08A] text-yellow-900 border-yellow-300",
+                  "bg-[#BFDBFE] text-blue-900 border-blue-300",
+                  "bg-[#E9D5FF] text-purple-900 border-purple-300",
+                  "bg-[#A7F3D0] text-emerald-900 border-emerald-300",
+                  "bg-[#FECDD3] text-rose-900 border-rose-300",
+                ];
+                const colorClass = tagColors[idx % tagColors.length];
+                return (
+                  <span
+                    key={tag}
+                    className={`px-4.5 py-1.5 rounded-full text-xs font-black border shadow-sm ${colorClass}`}
+                  >
+                    {tag}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+    </div>
+  </div>
+</div>
 
       {/* FAB button in bottom right corner matching Screen 1/2 */}
       {community.isJoined && activeTab === "Postingan" && (

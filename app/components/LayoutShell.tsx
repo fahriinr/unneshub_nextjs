@@ -38,7 +38,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
             {children}
           </main>
         ) : (
-          <div className="w-full max-w-[520px] flex flex-col min-h-full md:shadow-[0_0_40px_rgba(0,0,0,0.08)] md:border-x md:border-slate-200/60 bg-white relative">
+          <div className="w-full max-w-[520px] md:max-w-4xl lg:max-w-6xl flex flex-col min-h-full md:shadow-[0_0_40px_rgba(0,0,0,0.08)] md:border-x md:border-slate-200/60 bg-white relative">
             <main className={`flex-1 flex flex-col ${isLoggedIn ? "has-bottom-nav" : ""}`}>
               {children}
             </main>
