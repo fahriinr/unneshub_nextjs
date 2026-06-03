@@ -119,6 +119,7 @@ model Community {
   description String            @db.Text
   rules       String?           @db.Text
   coverImage  String?           @map("cover_image")
+  tags        String[]
   category    CommunityCategory
   status      CommunityStatus   @default(PENDING_APPROVAL)
   creatorId   String            @map("creator_id")
@@ -161,11 +162,15 @@ model Post {
   userId      String   @map("user_id")
   title       String?
   content     String   @db.Text
-  tag         String?
-  imageUrl    String?  @map("image_url")
-  isAnonymous Boolean  @default(false) @map("is_anonymous")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  tag           String?
+  imageUrl      String?  @map("image_url")
+  isAnonymous   Boolean  @default(false) @map("is_anonymous")
+  eventName     String?  @map("event_name")
+  eventDate     String?  @map("event_date")
+  eventTime     String?  @map("event_time")
+  eventLocation String?  @map("event_location")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   // Relations
   community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)

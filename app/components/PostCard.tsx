@@ -1,4 +1,4 @@
-import { useState } from "react";
+// PostCard.tsx
 
 export interface PostItem {
   id: string;
@@ -36,6 +36,7 @@ interface PostCardProps {
   handleRegisterEvent: (id: string) => void;
   handleLike: (id: string) => Promise<void>;
   handleOpenComments: (post: PostItem) => Promise<void>;
+  onImageClick?: (url: string) => void;
 }
 
 export default function PostCard({
@@ -51,6 +52,7 @@ export default function PostCard({
   handleRegisterEvent,
   handleLike,
   handleOpenComments,
+  onImageClick,
 }: PostCardProps) {
   const isEditingThisPost = editingPostId === post.id;
 
@@ -165,7 +167,10 @@ export default function PostCard({
             <img 
               src={post.imageUrl} 
               alt="Post attachment" 
-              className="w-full h-44 object-cover rounded-lg"
+              loading="lazy"
+              decoding="async"
+              onClick={() => post.imageUrl && onImageClick?.(post.imageUrl)}
+              className="w-full h-44 object-cover rounded-lg cursor-zoom-in hover:brightness-95 transition-all"
             />
           </div>
         )}

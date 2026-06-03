@@ -1,4 +1,6 @@
+import { useState } from "react";
 import Link from "next/link";
+import ImageLightbox from "./ImageLightbox";
 
 export interface CommunityDetails {
   id: string;
@@ -10,12 +12,14 @@ export interface CommunityDetails {
   initials: string;
   isJoined: boolean;
   rules?: string;
+  tags?: string[];
   chatCount?: number;
   isVerified?: boolean;
   avatarColor: string;
   onlineCount: number;
   coverImage?: string | null;
   community_image_url?: string | null;
+  creatorId?: string;
   permissions: {
     canEdit: boolean;
     canDelete: boolean;
@@ -30,7 +34,6 @@ interface CommunityVisitorViewProps {
   joining: boolean;
   successToast: string;
   handleJoinCommunity: () => void;
-  parseRulesAndTags: (rules: string | null) => { tags: string[]; rules: string };
 }
 
 export default function CommunityVisitorView({
@@ -38,8 +41,9 @@ export default function CommunityVisitorView({
   joining,
   successToast,
   handleJoinCommunity,
-  parseRulesAndTags,
 }: CommunityVisitorViewProps) {
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+
   return (
     <div className="flex-1 w-full bg-white flex flex-col min-h-screen">
       {/* Toast Notification */}
@@ -69,28 +73,24 @@ export default function CommunityVisitorView({
         </Link>
       </div>
 
-      {/* Main Responsive Grid Container */}
-      <div className="flex-1 w-full max-w-lg md:max-w-4xl lg:max-w-6xl mx-auto px-4 py-5 pb-28">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
-          
-          {/* Left Main Section (Banner & Description) */}
-          <div className="md:col-span-2 flex flex-col gap-5">
-            {/* Community Dark Navy Banner Block */}
-            <div className="bg-[#0B1E36] rounded-2xl p-6 flex items-center gap-4 text-white relative overflow-hidden shadow-sm">
-              {/* Custom Avatar Square Badge matching soft box guidelines */}
-              <div className="w-14 h-14 rounded-xl overflow-hidden border border-white/20 shrink-0 bg-white flex items-center justify-center shadow-sm">
-                {community.coverImage || community.community_image_url ? (
-                  <img
-                    src={community.coverImage || community.community_image_url || ""}
-                    alt={community.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className={`w-full h-full ${community.avatarColor} flex items-center justify-center font-extrabold text-xl`}>
-                    {community.initials}
-                  </div>
-                )}
+      {/* Community Dark Navy Banner Block */}
+      <div className="px-4 pt-3 max-w-lg mx-auto w-full">
+        <div className="bg-[#0B1E36] rounded-2xl p-6 flex items-center gap-4 text-white relative overflow-hidden shadow-sm">
+          {/* Custom Avatar Square Badge matching soft box guidelines */}
+          <div className="w-14 h-14 rounded-xl overflow-hidden border border-white/20 shrink-0 bg-white flex items-center justify-center shadow-sm">
+            {community.coverImage || community.community_image_url ? (
+              <img
+                src={community.coverImage || community.community_image_url || ""}
+                alt={community.name}
+                onClick={() => setPreviewImageUrl(community.coverImage || community.community_image_url || null)}
+                className="w-full h-full object-cover cursor-zoom-in hover:brightness-95 transition-all"
+              />
+            ) : (
+              <div className={`w-full h-full ${community.avatarColor} flex items-center justify-center font-extrabold text-xl`}>
+                {community.initials}
               </div>
+            )}
+          </div>
 
               <div className="flex flex-col min-w-0">
                 <h1 className="text-base font-extrabold tracking-tight leading-snug truncate">
@@ -110,66 +110,37 @@ export default function CommunityVisitorView({
             </div>
           </div>
 
-          {/* Right Sidebar Section (Stats, Tags, and Action Button) */}
-          <div className="md:col-span-1 flex flex-col gap-5 sticky top-24">
-            {/* Stats Cards */}
-            <div className="grid grid-cols-3 gap-3 md:grid-cols-1">
-              <div className="bg-white border border-slate-100 rounded-2xl py-3 px-1 flex flex-col items-center justify-center text-center shadow-sm md:flex-row md:justify-between md:px-5">
-                <span className="text-[8px] font-extrabold text-slate-400 uppercase tracking-wider md:text-[10px]">
-                  Anggota
-                </span>
-                <span className="text-xs font-black text-[#0B1E36] md:text-sm">
-                  {community.membersCount}
-                </span>
-              </div>
+      {/* Tag Komunitas Card (Visitor View) matching mockup colors exactly */}
+      {(() => {
+        const displayTags = (community.tags && community.tags.length > 0)
+          ? community.tags.map(t => t.startsWith("#") ? t : `#${t}`)
+          : ["#Robotika", "#AI", "#IoT"];
 
-              <div className="bg-white border border-slate-100 rounded-2xl py-3 px-1 flex items-center justify-center text-center shadow-sm md:px-5 md:py-4">
-                <div className="flex items-center justify-center gap-1.5">
-                  <span className="text-[10px] text-[#F2C010]">★</span>
-                  <span className="text-[9px] font-black text-[#0B1E36] uppercase tracking-wide md:text-[10px]">
-                    Verified
-                  </span>
-                </div>
-              </div>
-
-              <div className="bg-white border border-slate-100 rounded-2xl py-3 px-1 flex flex-col items-center justify-center text-center shadow-sm md:flex-row md:justify-between md:px-5">
-                <span className="text-[8px] font-extrabold text-slate-400 uppercase tracking-wider md:text-[10px]">
-                  Diskusi
-                </span>
-                <span className="text-xs font-black text-[#0B1E36] md:text-sm">
-                  {community.chatCount ?? 65}
-                </span>
+        return (
+          <div className="px-4 pt-5 max-w-lg mx-auto w-full select-none">
+            <div className="bg-white border-2 border-[#0B1E36] rounded-2xl p-5 shadow-[4px_4px_0px_0px_#0B1E36] flex flex-col gap-4 text-center">
+              <h2 className="text-sm font-black text-[#0B1E36] uppercase tracking-wider">Tag Komunitas</h2>
+              <div className="flex flex-wrap justify-center gap-2.5">
+                {displayTags.map((tag, idx) => {
+                  const tagColors = [
+                    "bg-[#FEF08A] text-yellow-900 border-yellow-300",
+                    "bg-[#BFDBFE] text-blue-900 border-blue-300",
+                    "bg-[#E9D5FF] text-purple-900 border-purple-300",
+                    "bg-[#A7F3D0] text-emerald-900 border-emerald-300",
+                    "bg-[#FECDD3] text-rose-900 border-rose-300",
+                  ];
+                  const colorClass = tagColors[idx % tagColors.length];
+                  return (
+                    <span key={tag} className={`px-4.5 py-1.5 rounded-full text-xs font-black border shadow-sm ${colorClass}`}>
+                      {tag}
+                    </span>
+                  );
+                })}
               </div>
             </div>
-
-            {/* Tag Komunitas Card (Visitor View) */}
-            {(() => {
-              const { tags } = parseRulesAndTags(community.rules || "");
-              const displayTags = tags.length > 0 ? tags : ["#Robotika", "#AI", "#IoT"];
-
-              return (
-                <div className="bg-white border-2 border-[#0B1E36] rounded-2xl p-5 shadow-[4px_4px_0px_0px_#0B1E36] flex flex-col gap-4 text-center select-none">
-                  <h2 className="text-sm font-black text-[#0B1E36] uppercase tracking-wider">Tag Komunitas</h2>
-                  <div className="flex flex-wrap justify-center gap-2.5">
-                    {displayTags.map((tag, idx) => {
-                      const tagColors = [
-                        "bg-[#FEF08A] text-yellow-900 border-yellow-300", // Yellow (#Robotika)
-                        "bg-[#BFDBFE] text-blue-900 border-blue-300",   // Blue (#AI)
-                        "bg-[#E9D5FF] text-purple-900 border-purple-300", // Purple (#IoT)
-                        "bg-[#A7F3D0] text-emerald-900 border-emerald-300",
-                        "bg-[#FECDD3] text-rose-900 border-rose-300",
-                      ];
-                      const colorClass = tagColors[idx % tagColors.length];
-                      return (
-                        <span key={tag} className={`px-4.5 py-1.5 rounded-full text-xs font-black border shadow-sm ${colorClass}`}>
-                          {tag}
-                        </span>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })()}
+          </div>
+        );
+      })()}
 
             {/* Join Action button for Desktop view */}
             <div className="hidden md:block">
@@ -225,6 +196,13 @@ export default function CommunityVisitorView({
           )}
         </button>
       </div>
+
+      {previewImageUrl && (
+        <ImageLightbox
+          src={previewImageUrl}
+          onClose={() => setPreviewImageUrl(null)}
+        />
+      )}
     </div>
   );
 }
