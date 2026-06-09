@@ -59,7 +59,7 @@ export default function ProfilePage() {
       return await res.json();
     },
     enabled: !!user?.isLoggedIn,
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 30,
   });
 
   // Derive profile fields from DB data
@@ -72,9 +72,19 @@ export default function ProfilePage() {
   // Stats from DB
   const joinedCount = profileData?.memberships?.length || 0;
   const postsCount = profileData?.posts?.length || 0;
-  const adminCount =
-    (profileData?.memberships?.filter((m: any) => m.role === "ADMIN")?.length || 0) +
-    (profileData?.createdCommunities?.length || 0);
+  const adminCount = (() => {
+    const adminCommunityIds = new Set<string>();
+    // Communities where user has ADMIN membership role
+    profileData?.memberships?.forEach((m: any) => {
+      if (m.role === "ADMIN")
+        adminCommunityIds.add(m.communityId || m.community?.id);
+    });
+    // Communities the user created (they are implicitly admin)
+    profileData?.createdCommunities?.forEach((c: any) => {
+      adminCommunityIds.add(c.id);
+    });
+    return adminCommunityIds.size;
+  })();
 
   // Sync form state when profile data loads
   const [initializedFrom, setInitializedFrom] = useState<string | null>(null);
@@ -211,30 +221,48 @@ export default function ProfilePage() {
                   className="w-full text-center bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-sm font-extrabold text-white outline-none focus:bg-white/20"
                   placeholder="Nama"
                 />
-                <p className="text-[10px] text-slate-400 mt-1 select-none leading-none">{dbEmail}</p>
+                <p className="text-[10px] text-slate-400 mt-1 select-none leading-none">
+                  {dbEmail}
+                </p>
               </div>
             ) : (
               <>
-                <h1 className="text-xl font-extrabold tracking-tight leading-snug">{dbName}</h1>
-                <p className="text-xs font-semibold text-slate-300 mt-1 select-none leading-none">{dbEmail}</p>
+                <h1 className="text-xl font-extrabold tracking-tight leading-snug">
+                  {dbName}
+                </h1>
+                <p className="text-xs font-semibold text-slate-300 mt-1 select-none leading-none">
+                  {dbEmail}
+                </p>
               </>
             )}
 
             {/* Stat Row */}
             <div className="flex items-center justify-center gap-4 mt-6 pt-4 border-t border-white/10 text-xs font-extrabold text-white select-none">
               <div className="flex flex-col items-center">
-                <span className="text-lg font-black text-[#F2C010]">{joinedCount}</span>
-                <span className="text-[8px] font-bold text-slate-300 uppercase mt-0.5 leading-none">Komunitas</span>
+                <span className="text-lg font-black text-[#F2C010]">
+                  {joinedCount}
+                </span>
+                <span className="text-[8px] font-bold text-slate-300 uppercase mt-0.5 leading-none">
+                  Komunitas
+                </span>
               </div>
               <div className="w-px h-8 bg-white/20"></div>
               <div className="flex flex-col items-center">
-                <span className="text-lg font-black text-[#F2C010]">{postsCount}</span>
-                <span className="text-[8px] font-bold text-slate-300 uppercase mt-0.5 leading-none">Postingan</span>
+                <span className="text-lg font-black text-[#F2C010]">
+                  {postsCount}
+                </span>
+                <span className="text-[8px] font-bold text-slate-300 uppercase mt-0.5 leading-none">
+                  Postingan
+                </span>
               </div>
               <div className="w-px h-8 bg-white/20"></div>
               <div className="flex flex-col items-center">
-                <span className="text-lg font-black text-[#F2C010]">{adminCount}</span>
-                <span className="text-[8px] font-bold text-slate-300 uppercase mt-0.5 leading-none">Admin</span>
+                <span className="text-lg font-black text-[#F2C010]">
+                  {adminCount}
+                </span>
+                <span className="text-[8px] font-bold text-slate-300 uppercase mt-0.5 leading-none">
+                  Admin
+                </span>
               </div>
             </div>
           </div>
@@ -297,7 +325,9 @@ export default function ProfilePage() {
             <>
               {/* NIM Field */}
               <div className="flex flex-col gap-2">
-                <label className="text-[9px] font-black text-slate-600 uppercase tracking-wider pl-1 select-none">NIM</label>
+                <label className="text-[9px] font-black text-slate-600 uppercase tracking-wider pl-1 select-none">
+                  NIM
+                </label>
                 {isEditing ? (
                   <input
                     type="text"
@@ -315,7 +345,9 @@ export default function ProfilePage() {
 
               {/* Fakultas Field */}
               <div className="flex flex-col gap-2">
-                <label className="text-[9px] font-black text-slate-600 uppercase tracking-wider pl-1 select-none">Fakultas</label>
+                <label className="text-[9px] font-black text-slate-600 uppercase tracking-wider pl-1 select-none">
+                  Fakultas
+                </label>
                 {isEditing ? (
                   <select
                     value={editFakultas}
@@ -338,12 +370,15 @@ export default function ProfilePage() {
 
               {/* Minat Tags Field */}
               <div className="flex flex-col gap-2">
-                <label className="text-[9px] font-black text-slate-600 uppercase tracking-wider pl-1 select-none">Minat</label>
-                
+                <label className="text-[9px] font-black text-slate-600 uppercase tracking-wider pl-1 select-none">
+                  Minat
+                </label>
+
                 {isEditing ? (
                   <div className="flex flex-col gap-3">
                     <span className="text-[10px] font-bold text-slate-400 italic pl-1 select-none">
-                      Pilih minat Anda dari daftar di bawah (bisa pilih beberapa):
+                      Pilih minat Anda dari daftar di bawah (bisa pilih
+                      beberapa):
                     </span>
                     <div className="flex flex-wrap gap-2 p-3 bg-white rounded-2xl border border-slate-200 shadow-sm select-none">
                       {PREDEFINED_MINAT.map((tag) => {
@@ -354,7 +389,9 @@ export default function ProfilePage() {
                             type="button"
                             onClick={() => {
                               if (isSelected) {
-                                setEditMinat(editMinat.filter((t) => t !== tag));
+                                setEditMinat(
+                                  editMinat.filter((t) => t !== tag),
+                                );
                               } else {
                                 setEditMinat([...editMinat, tag]);
                               }
@@ -366,14 +403,18 @@ export default function ProfilePage() {
                             }`}
                           >
                             {tag}
-                            <span className="text-[9px] opacity-75">{isSelected ? "✓" : "+"}</span>
+                            <span className="text-[9px] opacity-75">
+                              {isSelected ? "✓" : "+"}
+                            </span>
                           </button>
                         );
                       })}
                     </div>
                     {editMinat.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 p-2 bg-slate-50 rounded-xl border border-slate-150 select-none">
-                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block w-full pl-1 mb-1 select-none">Terpilih:</span>
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block w-full pl-1 mb-1 select-none">
+                          Terpilih:
+                        </span>
                         {editMinat.map((tag) => (
                           <span
                             key={tag}
@@ -389,12 +430,17 @@ export default function ProfilePage() {
                   <div className="flex flex-wrap gap-2 min-h-[42px] select-text">
                     {user.minat && user.minat.length > 0 ? (
                       user.minat.map((tag) => (
-                        <span key={tag} className="px-3.5 py-1.5 bg-white border border-slate-150 rounded-full text-[10px] font-extrabold text-[#0B1E36] shadow-sm">
+                        <span
+                          key={tag}
+                          className="px-3.5 py-1.5 bg-white border border-slate-150 rounded-full text-[10px] font-extrabold text-[#0B1E36] shadow-sm"
+                        >
                           {tag}
                         </span>
                       ))
                     ) : (
-                      <span className="text-xs font-semibold text-slate-400 italic pl-1">Belum ada minat</span>
+                      <span className="text-xs font-semibold text-slate-400 italic pl-1">
+                        Belum ada minat
+                      </span>
                     )}
                   </div>
                 )}

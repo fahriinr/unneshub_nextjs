@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useUserSession } from "../../hooks/useUserSession";
 import { uploadFile } from "@/lib/upload";
+import { useQueryClient } from "@tanstack/react-query";
 
 import CommunityVisitorView, {
   CommunityDetails,
@@ -119,6 +120,7 @@ export default function CommunityDetailPage({
 }) {
   const router = useRouter();
   const { user, loading } = useUserSession();
+  const queryClient = useQueryClient();
   const { id } = use(params);
 
   // States
@@ -1588,9 +1590,9 @@ export default function CommunityDetailPage({
                         )}
                       </div>
                     </div>
-                    {community.isJoined && (community.permissions.isCommunityOwner || community.permissions.isCommunityAdmin) && (
+                    {community.isJoined && (community.permissions.isCommunityOwner || community.permissions.isCommunityAdmin || user.role === "global_admin") && (
                       <div className="flex items-center gap-2 shrink-0">
-                        {community.permissions.isCommunityOwner && m.user.email !== user.email && (
+                        {(community.permissions.isCommunityOwner || user.role === "global_admin") && m.user.email !== user.email && m.user.id !== community.creatorId && (
                           <button
                             type="button"
                             onClick={() => setMemberActionConfirm({
@@ -1604,7 +1606,7 @@ export default function CommunityDetailPage({
                           </button>
                         )}
                         {m.user.email !== user.email && m.user.id !== community.creatorId && (
-                          (community.permissions.isCommunityOwner || (community.permissions.isCommunityAdmin && m.role !== "ADMIN")) && (
+                          (community.permissions.isCommunityOwner || user.role === "global_admin" || (community.permissions.isCommunityAdmin && m.role !== "ADMIN")) && (
                             <button
                               type="button"
                               onClick={() => setMemberActionConfirm({
@@ -2087,6 +2089,7 @@ export default function CommunityDetailPage({
                     });
                     if (res.ok) {
                       setShowLeaveConfirm(false);
+                      queryClient.invalidateQueries({ queryKey: ["profile"] });
                       triggerToast("Berhasil keluar dari komunitas.");
                       setTimeout(() => router.push("/"), 1000);
                     } else {

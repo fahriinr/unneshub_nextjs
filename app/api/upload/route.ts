@@ -7,14 +7,22 @@ export async function POST(request: NextRequest) {
     const bucket = formData.get("bucket") as string | null;
 
     if (!file || !bucket) {
-      return NextResponse.json({ error: "Missing file or bucket" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing file or bucket" },
+        { status: 400 },
+      );
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://nyuomnjaxklktiygbcrp.supabase.co";
+    const supabaseUrl =
+      process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      "https://nyuomnjaxklktiygbcrp.supabase.co";
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseServiceKey) {
-      return NextResponse.json({ error: "Supabase Service Role Key is not configured on the server." }, { status: 500 });
+      return NextResponse.json(
+        { error: "Supabase Service Role Key is not configured on the server." },
+        { status: 500 },
+      );
     }
 
     // Generate unique filename to avoid collision
@@ -29,8 +37,8 @@ export async function POST(request: NextRequest) {
     const response = await fetch(url, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${supabaseServiceKey}`,
-        "apikey": supabaseServiceKey,
+        Authorization: `Bearer ${supabaseServiceKey}`,
+        apikey: supabaseServiceKey,
         "Content-Type": file.type,
       },
       body: fileBuffer,
@@ -50,9 +58,11 @@ export async function POST(request: NextRequest) {
 
     const publicUrl = `${supabaseUrl}/storage/v1/object/public/${bucket}/${filePath}`;
     return NextResponse.json({ url: publicUrl }, { status: 200 });
-
   } catch (error: unknown) {
     const err = error as Error;
-    return NextResponse.json({ error: err.message || "Internal Server Error" }, { status: 500 });
+    return NextResponse.json(
+      { error: err.message || "Internal Server Error" },
+      { status: 500 },
+    );
   }
 }

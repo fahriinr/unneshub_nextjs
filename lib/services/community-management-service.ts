@@ -1,6 +1,6 @@
 import { prisma } from "../prisma";
 import { requireAuth, requireCommunityAdmin, requireCommunityOwner } from "../auth/community-permissions";
-import { CommunityRole } from "../../app/generated/prisma/client";
+import { CommunityRole, UserRole } from "../../app/generated/prisma/client";
 
 export interface UpdateCommunityInput {
   name?: string;
@@ -86,6 +86,7 @@ export async function leaveCommunity(communityId: string) {
 
 export async function kickMember(communityId: string, memberId: string) {
   const user = await requireAuth();
+  const isGlobalAdmin = (user as any).role === "GLOBAL_ADMIN";
 
   const [currentUserMember, targetMember, community] = await prisma.$transaction([
     prisma.communityMember.findUnique({
@@ -114,8 +115,11 @@ export async function kickMember(communityId: string, memberId: string) {
     throw new Error("NotFound: Community not found");
   }
 
-  if (!currentUserMember || currentUserMember.status !== "APPROVED" || (currentUserMember.role !== "ADMIN" && community.creatorId !== user.id)) {
-    throw new Error("Forbidden: Admin privileges required to kick members");
+  // Global Admin can kick anyone except community owner
+  if (!isGlobalAdmin) {
+    if (!currentUserMember || currentUserMember.status !== "APPROVED" || (currentUserMember.role !== "ADMIN" && community.creatorId !== user.id)) {
+      throw new Error("Forbidden: Admin privileges required to kick members");
+    }
   }
 
   if (!targetMember) {
@@ -130,9 +134,9 @@ export async function kickMember(communityId: string, memberId: string) {
     throw new Error("Forbidden: You cannot kick yourself");
   }
 
-  // Prevent admins from kicking other admins (only owner can kick admins)
+  // Prevent admins from kicking other admins (only owner or global admin can kick admins)
   const isOwner = community.creatorId === user.id;
-  if (!isOwner && targetMember.role === "ADMIN") {
+  if (!isOwner && !isGlobalAdmin && targetMember.role === "ADMIN") {
     throw new Error("Forbidden: Only the community owner can kick an admin");
   }
 
@@ -147,7 +151,22 @@ export async function kickMember(communityId: string, memberId: string) {
 }
 
 export async function updateMemberRole(communityId: string, memberId: string, newRole: CommunityRole) {
-  const { community } = await requireCommunityOwner(communityId);
+  const user = await requireAuth();
+  const isGlobalAdmin = (user as any).role === "GLOBAL_ADMIN";
+
+  const community = await prisma.community.findUnique({
+    where: { id: communityId },
+    select: { creatorId: true },
+  });
+
+  if (!community) {
+    throw new Error("NotFound: Community not found");
+  }
+
+  // Only community owner or Global Admin can change roles
+  if (community.creatorId !== user.id && !isGlobalAdmin) {
+    throw new Error("Forbidden: You must be the owner of this community");
+  }
 
   if (community.creatorId === memberId) {
     throw new Error("Forbidden: Cannot modify the role of the community owner");
